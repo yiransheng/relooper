@@ -1,0 +1,9 @@
+[package]
+name = "relooper"
+version = "0.1.0"
+authors = ["Yiran Sheng <shengyiran@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+fixedbitset = "0.1.9"
+petgraph = "0.4.13"
