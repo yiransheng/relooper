@@ -61,6 +61,8 @@ pub enum FlowType {
     Continue,
 }
 
+// All branches in input CFG will eventually be registered to
+// some Simple shape
 pub enum Branch<C> {
     // a branch has been registered to a leaf(simple) shape
     Registered,
@@ -69,6 +71,40 @@ pub enum Branch<C> {
     // processed branch with known ancestor (loop/simple/multi)
     // but not yet registered to a simple shape
     Processed(ProcessedBranch<C>),
+}
+
+impl<C> Branch<C> {
+    pub(crate) fn take(&mut self) -> Option<ProcessedBranch<C>> {
+        let b = ::std::mem::replace(self, Branch::Registered);
+
+        if let Branch::Processed(b) = b {
+            Some(b)
+        } else {
+            *self = b;
+            None
+        }
+    }
+
+    pub(crate) fn solipsize(
+        &mut self,
+        target: BlockId,
+        flow_type: FlowType,
+        ancestor: ShapeId,
+    ) {
+        let b = ::std::mem::replace(self, Branch::Registered);
+
+        if let Branch::Raw(data) = b {
+            let processed = ProcessedBranch {
+                data,
+                flow_type,
+                ancestor,
+                target,
+            };
+            *self = Branch::Processed(processed);
+        } else {
+            *self = b;
+        }
+    }
 }
 
 pub struct ProcessedBranch<C> {
