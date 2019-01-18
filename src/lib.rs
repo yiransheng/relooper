@@ -1,3 +1,4 @@
+mod shapes;
 mod types;
 
 use std::marker::PhantomData;

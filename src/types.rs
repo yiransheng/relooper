@@ -114,4 +114,10 @@ pub struct ProcessedBranch<C> {
     pub target: BlockId,
 }
 
-pub(crate) type CFGraph<L, C> = DiGraph<L, Branch<C>, DefaultIndex>;
+pub enum Block<L> {
+    Raw(L),
+    // has registered to a simple shape
+    Registered,
+}
+
+pub(crate) type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
