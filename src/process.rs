@@ -537,8 +537,8 @@ mod tests {
         let c = graph.add_node(Block::Raw("c"));
 
         graph.add_edge(a, b, Branch::Raw(Some("true")));
-        graph.add_edge(b, c, Branch::Raw(Some("false")));
-        graph.add_edge(c, b, Branch::Raw(Some("false")));
+        graph.add_edge(a, c, Branch::Raw(Some("false")));
+        // graph.add_edge(c, b, Branch::Raw(Some("false")));
 
         let mut entries = empty_block_set(&graph);
         let mut next_entries = empty_block_set(&graph);
