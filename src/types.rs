@@ -35,12 +35,19 @@ pub(crate) type BlockId = NodeIndex<DefaultIndex>;
 
 pub(crate) type BranchId = EdgeIndex<DefaultIndex>;
 
+#[derive(Debug, Clone)]
 pub(crate) struct BlockSet<Ix = BlockId> {
     inner: FixedBitSet,
     _idx_ty: PhantomData<Ix>,
 }
 
 impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
+    pub(crate) fn new_empty(size: usize) -> Self {
+        BlockSet {
+            inner: FixedBitSet::with_capacity(size),
+            _idx_ty: PhantomData,
+        }
+    }
     // panics if index out of bound
     #[inline]
     pub(crate) fn insert(&mut self, idx: NodeIndex<Ix>) -> bool {
@@ -50,6 +57,10 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     #[inline]
     pub(crate) fn remove(&mut self, idx: NodeIndex<Ix>) {
         self.inner.set(idx.index(), false)
+    }
+    #[inline]
+    pub(crate) fn clear(&mut self) {
+        self.inner.clear();
     }
     pub(crate) fn contains(&self, idx: NodeIndex<Ix>) -> bool {
         self.inner[idx.index()]
@@ -71,6 +82,12 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     #[inline]
     pub(crate) fn len(&self) -> usize {
         self.inner.count_ones(..)
+    }
+
+    pub(crate) fn iter<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = NodeIndex<Ix>> + 'a {
+        self.inner.ones().map(NodeIndex::new)
     }
 }
 
