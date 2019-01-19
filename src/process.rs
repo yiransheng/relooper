@@ -1,6 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::ops::{Deref, DerefMut};
 
+use itertools::iproduct;
 use petgraph::Direction;
 use smallvec::SmallVec;
 
@@ -109,10 +110,21 @@ impl<L, C> GraphEnv<L, C> {
         let edge = self.cfgraph.find_edge(a, b)?;
         self.cfgraph.edge_weight_mut(edge)
     }
+
+    fn empty_block_set(&self) -> BlockSet {
+        BlockSet::new_empty(self.cfgraph.node_count())
+    }
 }
 
 fn empty_block_set<L, C>(g: &CFGraph<L, C>) -> BlockSet {
     BlockSet::new_empty(g.node_count())
+}
+
+fn process<'a, L, C>(
+    mut subset: CFGSubset<'a>,
+    env: &mut GraphEnv<L, C>,
+) -> Option<Shape<L, C>> {
+    unimplemented!()
 }
 
 // fn process<'a, L, C>(
@@ -261,113 +273,87 @@ impl<'a> CFGSubset<'a> {
 
         Some((shape, next_subset))
     }
+    fn make_loop<L, C>(
+        mut self,
+        env: &mut GraphEnv<L, C>,
+    ) -> Option<(Shape<L, C>, Self)> {
+        let CFGSubset {
+            blocks,
+            entries,
+            next_entries,
+        } = self;
 
-    // fn make_loop(
-    // mut self,
-    // env: &mut GraphEnv<L, C>,
-    // ) -> Option<(Shape<L, C>, Self)> {
-    // // generate loop shape id
-    // let shape_id = self.shape_id_gen.next_shape_id();
+        // generate loop shape id
+        let shape_id = env.next_shape_id();
 
-    // // find all blocks than reaches entry blocks
-    // let mut inner_blocks = self.empty_block_set();
+        // find all blocks than reaches entry blocks
+        let mut inner_blocks = env.empty_block_set();
 
-    // // locally allocated temp BlockSet, will be reused
-    // // a few times
-    // let mut tmp_set = self.entries.clone();
-    // while let Some(block_id) = tmp_set.take_one() {
-    // if !inner_blocks.contains(block_id) {
-    // inner_blocks.insert(block_id);
-    // for incoming in self.blocks_in(block_id) {
-    // tmp_set.insert(incoming);
-    // }
-    // }
-    // }
+        let mut queue = entries.clone();
+        while let Some(block_id) = queue.take_one() {
+            if !inner_blocks.contains(block_id) {
+                inner_blocks.insert(block_id);
+                for incoming in env.blocks_in(block_id, blocks) {
+                    queue.insert(incoming);
+                }
+            }
+        }
 
-    // assert!(inner_blocks.len() > 0);
+        assert!(!inner_blocks.is_empty());
 
-    // macro_rules! temp_move_blocks {
-    // ($field: expr, $b: block) => {{
-    // tmp_set = ::std::mem::replace($field, tmp_set);
-    // $b;
-    // tmp_set = ::std::mem::replace($field, tmp_set);
-    // }};
-    // }
+        // populate next_entries
+        next_entries.extend(
+            inner_blocks
+                .iter()
+                .flat_map(|curr_id| env.blocks_out(curr_id, blocks))
+                .filter(|b| !inner_blocks.contains(*b)),
+        );
 
-    // // populate next_entries
-    // temp_move_blocks!(self.next_entries, {
-    // for curr_id in inner_blocks.iter() {
-    // for possible in self.blocks_out(curr_id) {
-    // if !inner_blocks.contains(possible) {
-    // tmp_set.insert(possible);
-    // }
-    // }
-    // }
-    // });
-    // // add continue branching
-    // temp_move_blocks!(self.entries, {
-    // for entry in tmp_set.iter() {
-    // for from_id in inner_blocks.iter() {
-    // if let Some(branch) = self.find_branch(from_id, entry) {
-    // branch.solipsize(entry, FlowType::Continue, shape_id);
-    // }
-    // }
-    // }
-    // });
-    // // add break branching
-    // temp_move_blocks!(self.next_entries, {
-    // for next_entry in tmp_set.iter() {
-    // for from_id in inner_blocks.iter() {
-    // if let Some(branch) = self.find_branch(from_id, next_entry)
-    // {
-    // branch.solipsize(
-    // next_entry,
-    // FlowType::Continue,
-    // shape_id,
-    // );
-    // }
-    // }
-    // }
-    // });
+        // add continue branching
+        for entry in entries.iter() {
+            for from_id in inner_blocks.iter() {
+                if let Some(branch) = env.find_branch_mut(from_id, entry) {
+                    branch.solipsize(entry, FlowType::Continue, shape_id);
+                }
+            }
+        }
+        // add break branching
+        for next_entry in next_entries.iter() {
+            for from_id in inner_blocks.iter() {
+                if let Some(branch) = env.find_branch_mut(from_id, next_entry) {
+                    branch.solipsize(next_entry, FlowType::Break, shape_id);
+                }
+            }
+        }
 
-    // // remove inner blocks
-    // for block in inner_blocks.iter() {
-    // self.blocks.remove(block);
-    // }
+        // remove inner blocks
+        for block in inner_blocks.iter() {
+            blocks.remove(block);
+        }
 
-    // // recursivly creates inner shape
-    // let (inner_shape, shape_id_gen, cfgraph) = {
-    // let mut inner_next_entries = self.empty_block_set();
-    // let inner_subset = CFGSubset {
-    // blocks: &mut inner_blocks,
-    // entries: self.entries,
-    // next_entries: &mut inner_next_entries,
+        // recursivly creates inner shape
+        let inner_shape = {
+            let mut inner_next_entries = env.empty_block_set();
+            let inner_subset = CFGSubset {
+                blocks: &mut inner_blocks,
+                entries: &mut *entries,
+                next_entries: &mut inner_next_entries,
+            };
+            process(inner_subset, env)?
+        };
 
-    // shape_id_gen: self.shape_id_gen,
-    // cfgraph: self.cfgraph,
-    // };
-    // process(inner_subset)?
-    // };
+        let next_subset = CFGSubset::new(next_entries, entries, blocks);
 
-    // let mut next_subset = CFGSubset {
-    // shape_id_gen,
-    // blocks: self.blocks,
-    // entries: self.entries,
-    // next_entries: self.next_entries,
-    // cfgraph,
-    // };
-    // next_subset.swap_entries();
+        let shape = Shape {
+            id: shape_id,
+            kind: ShapeKind::Loop(LoopShape {
+                inner: Box::new(inner_shape),
+            }),
+            next: None,
+        };
 
-    // let shape = Shape {
-    // id: shape_id,
-    // kind: ShapeKind::Loop(LoopShape {
-    // inner: Box::new(inner_shape),
-    // }),
-    // next: None,
-    // };
-
-    // Some((shape, next_subset))
-    // }
+        Some((shape, next_subset))
+    }
 
     // fn find_independent_groups(&self) -> IndepSetMap {
     // use std::ops::AddAssign;
