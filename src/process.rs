@@ -1,7 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::ops::{Deref, DerefMut};
 
-use itertools::iproduct;
 use petgraph::Direction;
 use smallvec::SmallVec;
 
