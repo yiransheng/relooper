@@ -521,8 +521,8 @@ mod tests {
         let c = graph.add_node(Block::Raw("c"));
 
         graph.add_edge(a, b, Branch::Raw(Some("true")));
-        graph.add_edge(a, c, Branch::Raw(Some("false")));
-        // graph.add_edge(c, b, Branch::Raw(Some("false")));
+        graph.add_edge(b, c, Branch::Raw(Some("false")));
+        graph.add_edge(c, b, Branch::Raw(Some("false")));
 
         let mut entries = empty_block_set(&graph);
         let mut next_entries = empty_block_set(&graph);
@@ -537,14 +537,15 @@ mod tests {
             blocks: &mut blocks,
             entries: &mut entries,
             next_entries: &mut next_entries,
-
-            cfgraph: &mut graph,
-            shape_id_gen: &mut shape_id_gen,
+        };
+        let mut env = GraphEnv {
+            shape_id_gen,
+            cfgraph: graph,
         };
 
-        let shape = process(subset).map(|x| x.0);
+        let shape = process(subset, &mut env);
 
-        println!("{:#?}", shape);
+        println!("{:#?}", shape.unwrap());
 
         assert!(false);
     }
