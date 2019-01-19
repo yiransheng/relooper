@@ -355,74 +355,77 @@ impl<'a> CFGSubset<'a> {
         Some((shape, next_subset))
     }
 
-    // fn find_independent_groups(&self) -> IndepSetMap {
-    // use std::ops::AddAssign;
+    fn find_independent_groups<L, C>(
+        &self,
+        env: &GraphEnv<L, C>,
+    ) -> IndepSetMap {
+        use std::ops::AddAssign;
 
-    // #[derive(Debug, Clone, Copy)]
-    // enum Source {
-    // Only(BlockId),
-    // MoreThanOne,
-    // }
-    // impl AddAssign for Source {
-    // fn add_assign(&mut self, other: Source) {
-    // if let (Source::Only(s1), Source::Only(s2)) = (&self, &other) {
-    // if *s1 == *s2 {
-    // return;
-    // }
-    // }
+        #[derive(Debug, Clone, Copy)]
+        enum Source {
+            Only(BlockId),
+            MoreThanOne,
+        }
+        impl AddAssign for Source {
+            fn add_assign(&mut self, other: Source) {
+                if let (Source::Only(s1), Source::Only(s2)) = (&self, &other) {
+                    if *s1 == *s2 {
+                        return;
+                    }
+                }
 
-    // *self = Source::MoreThanOne;
-    // }
-    // }
+                *self = Source::MoreThanOne;
+            }
+        }
 
-    // let mut sources: HashMap<BlockId, Source> =
-    // self.entries.iter().map(|e| (e, Source::Only(e))).collect();
+        let mut sources: HashMap<BlockId, Source> =
+            self.entries.iter().map(|e| (e, Source::Only(e))).collect();
 
-    // let mut queue: VecDeque<(BlockId, BlockId)> =
-    // self.entries.iter().map(|e| (e, e)).collect();
+        let mut queue: VecDeque<(BlockId, BlockId)> =
+            self.entries.iter().map(|e| (e, e)).collect();
 
-    // while let Some((entry, block)) = queue.pop_front() {
-    // let mut src = match sources.get(&block) {
-    // Some(src) => *src,
-    // None => Source::Only(entry),
-    // };
-    // src += Source::Only(entry);
-    // sources.insert(block, src);
+        while let Some((entry, block)) = queue.pop_front() {
+            let mut src = match sources.get(&block) {
+                Some(src) => *src,
+                None => Source::Only(entry),
+            };
+            src += Source::Only(entry);
+            sources.insert(block, src);
 
-    // if let Source::MoreThanOne = src {
-    // continue;
-    // }
+            if let Source::MoreThanOne = src {
+                continue;
+            }
 
-    // for next_block in self.blocks_out(block) {
-    // match sources.get(&next_block) {
-    // Some(Source::MoreThanOne) => {}
-    // Some(Source::Only(s)) if *s == entry => {}
-    // Some(Source::Only(_)) => {
-    // sources.insert(next_block, Source::MoreThanOne);
-    // }
-    // None => {
-    // queue.push_back((entry, next_block));
-    // }
-    // }
-    // }
-    // }
+            for next_block in env.blocks_out(block, &*self.blocks) {
+                match sources.get(&next_block) {
+                    Some(Source::MoreThanOne) => {}
+                    Some(Source::Only(s)) if *s == entry => {}
+                    Some(Source::Only(_)) => {
+                        sources.insert(next_block, Source::MoreThanOne);
+                    }
+                    None => {
+                        queue.push_back((entry, next_block));
+                    }
+                }
+            }
+        }
 
-    // let mut indep_groups: IndepSetMap = self
-    // .entries
-    // .iter()
-    // .map(|e| (e, self.empty_block_set()))
-    // .collect();
+        let mut indep_groups: IndepSetMap = self
+            .entries
+            .iter()
+            .map(|e| (e, env.empty_block_set()))
+            .collect();
 
-    // for (block, src) in sources.iter() {
-    // if let Source::Only(entry) = src {
-    // indep_groups.get_mut(entry).map(|set| {
-    // set.insert(*block);
-    // });
-    // }
-    // }
+        for (block, src) in sources.iter() {
+            if let Source::Only(entry) = src {
+                indep_groups.get_mut(entry).map(|set| {
+                    set.insert(*block);
+                });
+            }
+        }
 
-    // indep_groups
-    // }
+        indep_groups
+    }
 
     fn make_multiple<L, C>(
         mut self,
@@ -508,87 +511,6 @@ impl<'a> CFGSubset<'a> {
 
         Some((shape, next_subset))
     }
-
-    // fn swap_entries(&mut self) {
-    // ::std::mem::swap(self.entries, self.next_entries);
-    // self.next_entries.clear();
-    // }
-
-    // fn blocks_out<'b>(
-    // &'b self,
-    // block: BlockId,
-    // ) -> impl Iterator<Item = BlockId> + 'b {
-    // assert!(self.blocks.contains(block));
-
-    // self.cfgraph
-    // .neighbors_directed(block, Direction::Outgoing)
-    // .filter(move |id| {
-    // let id = *id;
-    // if !self.blocks.contains(id) {
-    // return false;
-    // }
-    // let edge = match self.cfgraph.find_edge(block, id) {
-    // Some(edge) => edge,
-    // _ => return false,
-    // };
-    // if let Some(Branch::Raw(_)) = self.cfgraph.edge_weight(edge) {
-    // true
-    // } else {
-    // false
-    // }
-    // })
-    // }
-
-    // fn blocks_in<'b>(
-    // &'b self,
-    // block: BlockId,
-    // ) -> impl Iterator<Item = BlockId> + 'b {
-    // assert!(self.blocks.contains(block));
-
-    // self.cfgraph
-    // .neighbors_directed(block, Direction::Incoming)
-    // .filter(move |id| {
-    // let id = *id;
-    // if !self.blocks.contains(id) {
-    // return false;
-    // }
-    // let edge = match self.cfgraph.find_edge(id, block) {
-    // Some(edge) => edge,
-    // _ => return false,
-    // };
-    // if let Some(Branch::Raw(_)) = self.cfgraph.edge_weight(edge) {
-    // true
-    // } else {
-    // false
-    // }
-    // })
-    // }
-
-    // fn find_branch(
-    // &mut self,
-    // a: BlockId,
-    // b: BlockId,
-    // ) -> Option<&mut Branch<C>> {
-    // if !self.blocks.contains(a) {
-    // return None;
-    // }
-
-    // let edge = self.cfgraph.find_edge(a, b)?;
-    // self.cfgraph.edge_weight_mut(edge)
-    // }
-
-    // fn find_branch_across_shapes(
-    // &mut self,
-    // a: BlockId,
-    // b: BlockId,
-    // ) -> Option<&mut Branch<C>> {
-    // let edge = self.cfgraph.find_edge(a, b)?;
-    // self.cfgraph.edge_weight_mut(edge)
-    // }
-
-    // fn empty_block_set(&self) -> BlockSet {
-    // BlockSet::new_empty(self.cfgraph.node_count())
-    // }
 }
 
 #[cfg(test)]
