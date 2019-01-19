@@ -57,6 +57,14 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     pub(crate) fn insert(&mut self, idx: NodeIndex<Ix>) -> bool {
         self.inner.put(idx.index())
     }
+    pub(crate) fn extend<I>(&mut self, idx: I)
+    where
+        I: IntoIterator<Item = NodeIndex<Ix>>,
+    {
+        for i in idx {
+            self.insert(i);
+        }
+    }
     // panics if index out of bound
     #[inline]
     pub(crate) fn remove(&mut self, idx: NodeIndex<Ix>) {
