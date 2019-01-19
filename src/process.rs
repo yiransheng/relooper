@@ -34,87 +34,6 @@ impl<L, C> DerefMut for GraphEnv<L, C> {
         &mut self.cfgraph
     }
 }
-impl<L, C> GraphEnv<L, C> {
-    fn next_shape_id(&mut self) -> ShapeId {
-        self.shape_id_gen.next_shape_id()
-    }
-
-    fn blocks_out<'a>(
-        &'a self,
-        block_id: BlockId,
-        blocks: &'a BlockSet,
-    ) -> impl Iterator<Item = BlockId> + 'a {
-        assert!(blocks.contains(block_id));
-
-        self.cfgraph
-            .neighbors_directed(block_id, Direction::Outgoing)
-            .filter(move |id| {
-                if !blocks.contains(*id) {
-                    return false;
-                }
-                self.find_raw_branch(block_id, *id).is_some()
-            })
-    }
-
-    fn blocks_in<'a>(
-        &'a self,
-        block_id: BlockId,
-        blocks: &'a BlockSet,
-    ) -> impl Iterator<Item = BlockId> + 'a {
-        assert!(blocks.contains(block_id));
-
-        self.cfgraph
-            .neighbors_directed(block_id, Direction::Incoming)
-            .filter(move |id| {
-                if !blocks.contains(*id) {
-                    return false;
-                }
-                self.find_raw_branch(*id, block_id).is_some()
-            })
-    }
-
-    fn find_raw_branch(&self, a: BlockId, b: BlockId) -> Option<&Branch<C>> {
-        self.find_branch(a, b).filter(|e| {
-            if let Branch::Raw(_) = e {
-                true
-            } else {
-                false
-            }
-        })
-    }
-
-    fn find_branch(&self, a: BlockId, b: BlockId) -> Option<&Branch<C>> {
-        let edge = self.cfgraph.find_edge(a, b)?;
-        self.cfgraph.edge_weight(edge)
-    }
-
-    fn find_raw_branch_mut(
-        &mut self,
-        a: BlockId,
-        b: BlockId,
-    ) -> Option<&mut Branch<C>> {
-        self.find_branch_mut(a, b).filter(|e| {
-            if let Branch::Raw(_) = e {
-                true
-            } else {
-                false
-            }
-        })
-    }
-
-    fn find_branch_mut(
-        &mut self,
-        a: BlockId,
-        b: BlockId,
-    ) -> Option<&mut Branch<C>> {
-        let edge = self.cfgraph.find_edge(a, b)?;
-        self.cfgraph.edge_weight_mut(edge)
-    }
-
-    fn empty_block_set(&self) -> BlockSet {
-        BlockSet::new_empty(self.cfgraph.node_count())
-    }
-}
 
 fn empty_block_set<L, C>(g: &CFGraph<L, C>) -> BlockSet {
     BlockSet::new_empty(g.node_count())
@@ -174,7 +93,7 @@ fn process<'a, L, C>(
 
         let mut indep_groups = subset.find_independent_groups(env);
 
-        let has_multi_entry = indep_groups.values().any(BlockSet::is_empty);
+        let has_multi_entry = indep_groups.values().any(|g| !g.is_empty());
 
         // Case 3: multiple entry some entry has non-empty indepent group
         if has_multi_entry {
@@ -378,6 +297,8 @@ impl<'a> CFGSubset<'a> {
         let mut queue: VecDeque<(BlockId, BlockId)> =
             self.entries.iter().map(|e| (e, e)).collect();
 
+        let mut i = 0;
+
         while let Some((entry, block)) = queue.pop_front() {
             let mut src = match sources.get(&block) {
                 Some(src) => *src,
@@ -438,20 +359,11 @@ impl<'a> CFGSubset<'a> {
         let mut break_count = 0;
 
         let mut curr_targets = env.empty_block_set();
-        for (entry, targets) in indep_groups.iter_mut() {
-            if targets.is_empty() {
-                next_entries.insert(*entry);
-                continue;
-            }
-            blocks.remove(*entry);
-
+        // populate next entries
+        for (_, targets) in indep_groups.iter_mut() {
             for curr_id in targets.iter() {
-                blocks.remove(curr_id);
                 curr_targets.clear();
-
-                for next_entry in env.blocks_out(curr_id, blocks) {
-                    curr_targets.insert(next_entry);
-                }
+                curr_targets.extend(env.blocks_out(curr_id, blocks));
 
                 for next_entry in
                     curr_targets.iter().filter(|id| !targets.contains(*id))
@@ -469,6 +381,8 @@ impl<'a> CFGSubset<'a> {
 
         for (entry, targets) in indep_groups.iter_mut() {
             if targets.is_empty() {
+                next_entries.insert(*entry);
+                blocks.remove(*entry);
                 continue;
             }
 
@@ -491,6 +405,10 @@ impl<'a> CFGSubset<'a> {
                     entry_type,
                 },
             );
+
+            for b in targets.iter() {
+                blocks.remove(b);
+            }
         }
 
         let shape = Shape {
@@ -507,6 +425,88 @@ impl<'a> CFGSubset<'a> {
     }
 }
 
+impl<L, C> GraphEnv<L, C> {
+    fn next_shape_id(&mut self) -> ShapeId {
+        self.shape_id_gen.next_shape_id()
+    }
+
+    fn blocks_out<'a>(
+        &'a self,
+        block_id: BlockId,
+        blocks: &'a BlockSet,
+    ) -> impl Iterator<Item = BlockId> + 'a {
+        assert!(blocks.contains(block_id));
+
+        self.cfgraph
+            .neighbors_directed(block_id, Direction::Outgoing)
+            .filter(move |id| {
+                if !blocks.contains(*id) {
+                    return false;
+                }
+                self.find_raw_branch(block_id, *id).is_some()
+            })
+    }
+
+    fn blocks_in<'a>(
+        &'a self,
+        block_id: BlockId,
+        blocks: &'a BlockSet,
+    ) -> impl Iterator<Item = BlockId> + 'a {
+        assert!(blocks.contains(block_id));
+
+        self.cfgraph
+            .neighbors_directed(block_id, Direction::Incoming)
+            .filter(move |id| {
+                if !blocks.contains(*id) {
+                    return false;
+                }
+                self.find_raw_branch(*id, block_id).is_some()
+            })
+    }
+
+    fn find_raw_branch(&self, a: BlockId, b: BlockId) -> Option<&Branch<C>> {
+        self.find_branch(a, b).filter(|e| {
+            if let Branch::Raw(_) = e {
+                true
+            } else {
+                false
+            }
+        })
+    }
+
+    fn find_branch(&self, a: BlockId, b: BlockId) -> Option<&Branch<C>> {
+        let edge = self.cfgraph.find_edge(a, b)?;
+        self.cfgraph.edge_weight(edge)
+    }
+
+    fn find_raw_branch_mut(
+        &mut self,
+        a: BlockId,
+        b: BlockId,
+    ) -> Option<&mut Branch<C>> {
+        self.find_branch_mut(a, b).filter(|e| {
+            if let Branch::Raw(_) = e {
+                true
+            } else {
+                false
+            }
+        })
+    }
+
+    fn find_branch_mut(
+        &mut self,
+        a: BlockId,
+        b: BlockId,
+    ) -> Option<&mut Branch<C>> {
+        let edge = self.cfgraph.find_edge(a, b)?;
+        self.cfgraph.edge_weight_mut(edge)
+    }
+
+    fn empty_block_set(&self) -> BlockSet {
+        BlockSet::new_empty(self.cfgraph.node_count())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -519,10 +519,12 @@ mod tests {
         let a = graph.add_node(Block::Raw("a"));
         let b = graph.add_node(Block::Raw("b"));
         let c = graph.add_node(Block::Raw("c"));
+        // let d = graph.add_node(Block::Raw("d"));
 
         graph.add_edge(a, b, Branch::Raw(Some("true")));
-        graph.add_edge(b, c, Branch::Raw(Some("false")));
-        graph.add_edge(c, b, Branch::Raw(Some("false")));
+        graph.add_edge(a, c, Branch::Raw(Some("false")));
+        // graph.add_edge(c, b, Branch::Raw(Some("false")));
+        // graph.add_edge(c, d, Branch::Raw(Some("break")));
 
         let mut entries = empty_block_set(&graph);
         let mut next_entries = empty_block_set(&graph);
