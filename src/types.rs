@@ -9,6 +9,7 @@ pub type DefaultIndex = u32;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct ShapeId<Ix = DefaultIndex>(Ix);
 
+#[derive(Default)]
 pub struct ShapeIdGen {
     counter: usize,
 }
@@ -22,14 +23,17 @@ impl ShapeIdGen {
 
 impl<Ix: IndexType> ShapeId<Ix> {
     #[inline]
-    pub(crate) fn new(index: usize) -> Self {
-        ShapeId(Ix::new(index))
-    }
-    #[inline]
     pub fn index(&self) -> usize {
         self.0.index()
     }
+
+    #[inline]
+    fn new(index: usize) -> Self {
+        ShapeId(Ix::new(index))
+    }
 }
+
+pub(crate) type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
 
 pub(crate) type BlockId = NodeIndex<DefaultIndex>;
 
@@ -147,6 +151,7 @@ impl<C> Branch<C> {
     }
 }
 
+#[derive(Debug)]
 pub struct ProcessedBranch<C> {
     pub data: Option<C>,
     pub flow_type: FlowType,
@@ -170,5 +175,3 @@ impl<L> Block<L> {
         }
     }
 }
-
-pub(crate) type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;

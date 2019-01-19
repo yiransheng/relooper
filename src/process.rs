@@ -1,6 +1,5 @@
 use std::collections::{HashMap, VecDeque};
 
-use petgraph::graph::IndexType;
 use petgraph::Direction;
 use smallvec::SmallVec;
 
@@ -18,6 +17,10 @@ struct CFGSubset<'a, 'g, L, C> {
 
     shape_id_gen: &'g mut ShapeIdGen,
     cfgraph: &'g mut CFGraph<L, C>,
+}
+
+fn empty_block_set<L, C>(g: &CFGraph<L, C>) -> BlockSet {
+    BlockSet::new_empty(g.node_count())
 }
 
 fn process<'a, 'g, L, C>(
@@ -74,6 +77,7 @@ fn process<'a, 'g, L, C>(
         }
 
         let mut indep_groups = subset.find_independent_groups();
+
         let has_multi_entry =
             indep_groups.values().filter(|g| !g.is_empty()).count() > 0;
 
@@ -92,16 +96,36 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
 
         // single entry (entries.len() == 1 checked in caller)
         let internal_id: BlockId = self.entries.sample_one()?;
-        let targets: SVec<BlockId> = self.blocks_out(internal_id).collect();
+
+        // populate next entries
+        let mut next_entries =
+            ::std::mem::replace(self.next_entries, BlockSet::new_empty(0));
+        for target_id in self.blocks_out(internal_id) {
+            next_entries.insert(target_id);
+        }
+        ::std::mem::replace(self.next_entries, next_entries);
+
+        let mut targets: SVec<BlockId> = self
+            .cfgraph
+            .neighbors_directed(internal_id, Direction::Outgoing)
+            .collect();
 
         // solipsize/process branches
+        for t in targets.iter().cloned() {
+            if let Some(branch) = self.find_branch_across_shapes(internal_id, t)
+            {
+                branch.solipsize(t, FlowType::Direct, shape_id);
+            }
+        }
+
+        // take processed branches (leaving dummy Branch::Registered in graph)
         let shape_branches_out: HashMap<_, _> = targets
-            .iter()
-            .cloned()
-            .filter_map(|target_id| {
-                if let Some(branch) = self.find_branch(internal_id, target_id) {
-                    branch.solipsize(target_id, FlowType::Direct, shape_id);
-                    branch.take().map(|b| (target_id, b))
+            .drain()
+            .filter_map(|t| {
+                if let Some(branch) =
+                    self.find_branch_across_shapes(internal_id, t)
+                {
+                    branch.take().map(|b| (t, b))
                 } else {
                     None
                 }
@@ -116,17 +140,11 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
 
         // comput next subset
         self.blocks.remove(internal_id);
-        let entries = self.entries;
-        let next_entries = self.next_entries;
-
-        for target_id in shape_branches_out.keys().cloned() {
-            next_entries.insert(target_id);
-        }
 
         let mut next_subset = CFGSubset {
             blocks: self.blocks,
-            entries,
-            next_entries,
+            entries: self.entries,
+            next_entries: self.next_entries,
             cfgraph: self.cfgraph,
             shape_id_gen: self.shape_id_gen,
         };
@@ -159,7 +177,6 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
         let mut tmp_set = self.entries.clone();
         while let Some(block_id) = tmp_set.take_one() {
             if !inner_blocks.contains(block_id) {
-                self.blocks.remove(block_id);
                 inner_blocks.insert(block_id);
                 for incoming in self.blocks_in(block_id) {
                     tmp_set.insert(incoming);
@@ -433,7 +450,7 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
         &'b self,
         block: BlockId,
     ) -> impl Iterator<Item = BlockId> + 'b {
-        debug_assert!(self.blocks.contains(block));
+        assert!(self.blocks.contains(block));
 
         self.cfgraph
             .neighbors_directed(block, Direction::Outgoing)
@@ -458,7 +475,7 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
         &'b self,
         block: BlockId,
     ) -> impl Iterator<Item = BlockId> + 'b {
-        debug_assert!(self.blocks.contains(block));
+        assert!(self.blocks.contains(block));
 
         self.cfgraph
             .neighbors_directed(block, Direction::Incoming)
@@ -492,7 +509,59 @@ impl<'a, 'g, L, C> CFGSubset<'a, 'g, L, C> {
         self.cfgraph.edge_weight_mut(edge)
     }
 
+    fn find_branch_across_shapes(
+        &mut self,
+        a: BlockId,
+        b: BlockId,
+    ) -> Option<&mut Branch<C>> {
+        let edge = self.cfgraph.find_edge(a, b)?;
+        self.cfgraph.edge_weight_mut(edge)
+    }
+
     fn empty_block_set(&self) -> BlockSet {
         BlockSet::new_empty(self.cfgraph.node_count())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_it() {
+        let mut graph: CFGraph<&'static str, &'static str> = CFGraph::default();
+        let mut shape_id_gen = ShapeIdGen::default();
+
+        let a = graph.add_node(Block::Raw("a"));
+        let b = graph.add_node(Block::Raw("b"));
+        let c = graph.add_node(Block::Raw("c"));
+
+        graph.add_edge(a, b, Branch::Raw(Some("true")));
+        graph.add_edge(b, c, Branch::Raw(Some("false")));
+        graph.add_edge(c, b, Branch::Raw(Some("false")));
+
+        let mut entries = empty_block_set(&graph);
+        let mut next_entries = empty_block_set(&graph);
+        let mut blocks = empty_block_set(&graph);
+        for n in graph.node_indices() {
+            blocks.insert(n);
+        }
+
+        entries.insert(a);
+
+        let subset = CFGSubset {
+            blocks: &mut blocks,
+            entries: &mut entries,
+            next_entries: &mut next_entries,
+
+            cfgraph: &mut graph,
+            shape_id_gen: &mut shape_id_gen,
+        };
+
+        let shape = process(subset).map(|x| x.0);
+
+        println!("{:#?}", shape);
+
+        assert!(false);
     }
 }
