@@ -124,76 +124,70 @@ fn process<'a, L, C>(
     mut subset: CFGSubset<'a>,
     env: &mut GraphEnv<L, C>,
 ) -> Option<Shape<L, C>> {
-    unimplemented!()
+    let mut shape: Option<Shape<L, C>> = None;
+    let mut has_ret = false;
+    let mut prev: &mut Link<L, C> = &mut None;
+    let mut multi_entry_type: EntryType = EntryType::Checked;
+
+    macro_rules! make {
+        ($call: expr) => {{
+            let (s, next_subset) = $call?;
+
+            if let ShapeKind::Simple(_) = &s.kind {
+                multi_entry_type = EntryType::Direct;
+            } else {
+                multi_entry_type = EntryType::Checked;
+            }
+
+            if !has_ret {
+                has_ret = true;
+                shape = Some(s);
+                prev = (&mut shape).as_mut().map(|s| &mut s.next).unwrap();
+            } else {
+                *prev = Some(Box::new(s));
+                prev = prev.as_mut().map(|s| &mut s.next).unwrap();
+            }
+
+            if next_subset.entries.is_empty() {
+                return shape;
+            } else {
+                subset = next_subset;
+                continue;
+            }
+        }};
+    }
+
+    loop {
+        if subset.entries.len() == 0 {
+            return shape;
+        }
+        if subset.entries.len() == 1 {
+            let single_entry = subset.entries.sample_one().unwrap();
+            // Case 1: no branch returns to entry
+            if env.blocks_in(single_entry, &*subset.blocks).count() == 0 {
+                make!(subset.make_simple(env));
+            }
+
+            // Case 2: some branch(es) returns to entry
+            make!(subset.make_loop(env));
+        }
+
+        let mut indep_groups = subset.find_independent_groups(env);
+
+        let has_multi_entry = indep_groups.values().any(BlockSet::is_empty);
+
+        // Case 3: multiple entry some entry has non-empty indepent group
+        if has_multi_entry {
+            make!(subset.make_multiple(
+                multi_entry_type,
+                &mut indep_groups,
+                env
+            ));
+        }
+        // Case 4: no entry has indepent group
+        make!(subset.make_loop(env));
+    }
 }
-
-// fn process<'a, L, C>(
-// mut subset: CFGSubset<'a>
-// env: &mut GraphEnv<L, C>,
-// ) -> Option<(Shape<L, C>, &'g mut ShapeIdGen, &'g mut CFGraph<L, C>)> {
-// panic!()
-// let mut shape: Option<Shape<L, C>> = None;
-// let mut has_ret = false;
-// let mut prev: &mut Link<L, C> = &mut None;
-// let mut multi_entry_type: EntryType = EntryType::Checked;
-
-// macro_rules! make {
-// ($call: expr) => {{
-// let (s, next_subset) = $call?;
-
-// if let ShapeKind::Simple(_) = &s.kind {
-// multi_entry_type = EntryType::Direct;
-// } else {
-// multi_entry_type = EntryType::Checked;
-// }
-
-// if !has_ret {
-// has_ret = true;
-// shape = Some(s);
-// prev = (&mut shape).as_mut().map(|s| &mut s.next).unwrap();
-// } else {
-// *prev = Some(Box::new(s));
-// prev = prev.as_mut().map(|s| &mut s.next).unwrap();
-// }
-
-// if next_subset.entries.is_empty() {
-// return shape.map(move |s| {
-// (s, next_subset.shape_id_gen, next_subset.cfgraph)
-// });
-// } else {
-// subset = next_subset;
-// continue;
-// }
-// }};
-// }
-
-// loop {
-// if subset.entries.len() == 0 {
-// return None;
-// }
-// if subset.entries.len() == 1 {
-// let single_entry = subset.entries.sample_one().unwrap();
-// // Case 1: no branch returns to entry
-// if subset.blocks_in(single_entry).count() == 0 {
-// make!(subset.make_simple());
-// }
-
-// // Case 2: some branch(es) returns to entry
-// make!(subset.make_loop());
-// }
-
-// let mut indep_groups = subset.find_independent_groups();
-
-// let has_multi_entry =
-// indep_groups.values().filter(|g| !g.is_empty()).count() > 0;
-
-// if has_multi_entry {
-// make!(subset.make_multiple(&mut indep_groups, multi_entry_type));
-// } else {
-// make!(subset.make_loop());
-// }
-// }
-// }
 
 impl<'a> CFGSubset<'a> {
     fn new(
