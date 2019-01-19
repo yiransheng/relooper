@@ -83,6 +83,9 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     pub(crate) fn len(&self) -> usize {
         self.inner.count_ones(..)
     }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     pub(crate) fn iter<'a>(
         &'a self,
