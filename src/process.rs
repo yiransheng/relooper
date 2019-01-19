@@ -424,108 +424,90 @@ impl<'a> CFGSubset<'a> {
     // indep_groups
     // }
 
-    // fn make_multiple(
-    // mut self,
-    // indep_groups: &mut IndepSetMap,
-    // entry_type: EntryType,
-    // ) -> Option<(Shape<L, C>, Self)> {
-    // // generate multi shape id
-    // let shape_id = self.shape_id_gen.next_shape_id();
-    // let mut handled = HashMap::new();
-    // let mut break_count = 0;
+    fn make_multiple<L, C>(
+        mut self,
+        entry_type: EntryType,
+        indep_groups: &mut IndepSetMap,
+        env: &mut GraphEnv<L, C>,
+    ) -> Option<(Shape<L, C>, Self)> {
+        let CFGSubset {
+            blocks,
+            entries,
+            next_entries,
+        } = self;
+        // generate multi shape id
+        let shape_id = env.next_shape_id();
+        let mut handled = HashMap::new();
+        let mut break_count = 0;
 
-    // let mut next_entries =
-    // ::std::mem::replace(self.next_entries, BlockSet::new_empty(0));
+        let mut curr_targets = env.empty_block_set();
+        for (entry, targets) in indep_groups.iter_mut() {
+            if targets.is_empty() {
+                next_entries.insert(*entry);
+                continue;
+            }
+            blocks.remove(*entry);
 
-    // let mut curr_targets = self.empty_block_set();
-    // for (entry, targets) in indep_groups.iter_mut() {
-    // if targets.is_empty() {
-    // next_entries.insert(*entry);
-    // continue;
-    // }
-    // self.blocks.remove(*entry);
+            for curr_id in targets.iter() {
+                blocks.remove(curr_id);
+                curr_targets.clear();
 
-    // for curr_id in targets.iter() {
-    // self.blocks.remove(curr_id);
-    // curr_targets.clear();
+                for next_entry in env.blocks_out(curr_id, blocks) {
+                    curr_targets.insert(next_entry);
+                }
 
-    // for next_entry in self.blocks_out(curr_id) {
-    // curr_targets.insert(next_entry);
-    // }
+                for next_entry in
+                    curr_targets.iter().filter(|id| !targets.contains(*id))
+                {
+                    next_entries.insert(next_entry);
+                    if let Some(branch) =
+                        env.find_branch_mut(curr_id, next_entry)
+                    {
+                        branch.solipsize(next_entry, FlowType::Break, shape_id);
+                        break_count += 1;
+                    }
+                }
+            }
+        }
 
-    // for next_entry in
-    // curr_targets.iter().filter(|id| !targets.contains(*id))
-    // {
-    // next_entries.insert(next_entry);
-    // if let Some(branch) = self.find_branch(curr_id, next_entry)
-    // {
-    // branch.solipsize(next_entry, FlowType::Break, shape_id);
-    // break_count += 1;
-    // }
-    // }
-    // }
-    // }
-    // ::std::mem::replace(self.next_entries, next_entries);
+        for (entry, targets) in indep_groups.iter_mut() {
+            if targets.is_empty() {
+                continue;
+            }
 
-    // let n_nodes = self.cfgraph.node_count();
-    // let CFGSubset {
-    // entries,
-    // next_entries,
-    // mut shape_id_gen,
-    // mut cfgraph,
-    // blocks,
-    // } = self;
+            let inner_shape = {
+                let mut inner_next_entries = env.empty_block_set();
+                let mut single_entry = env.empty_block_set();
+                single_entry.insert(*entry);
 
-    // for (entry, targets) in indep_groups.iter_mut() {
-    // if targets.is_empty() {
-    // continue;
-    // }
+                let subset = CFGSubset {
+                    blocks: targets,
+                    entries: &mut single_entry,
+                    next_entries: &mut inner_next_entries,
+                };
+                process(subset, env)?
+            };
+            handled.insert(
+                *entry,
+                HandledShape {
+                    shape: inner_shape,
+                    entry_type,
+                },
+            );
+        }
 
-    // let (inner_shape, shape_id_gen_, cfgraph_) = {
-    // let mut inner_next_entries = BlockSet::new_empty(n_nodes);
-    // let mut single_entry = BlockSet::new_empty(n_nodes);
-    // single_entry.insert(*entry);
+        let shape = Shape {
+            id: shape_id,
+            kind: ShapeKind::Multi(MultipleShape {
+                handled,
+                break_count,
+            }),
+            next: None,
+        };
+        let next_subset = CFGSubset::new(next_entries, entries, blocks);
 
-    // let subset = CFGSubset {
-    // blocks: targets,
-    // entries: &mut single_entry,
-    // next_entries: &mut inner_next_entries,
-    // cfgraph,
-    // shape_id_gen,
-    // };
-    // process(subset)?
-    // };
-    // cfgraph = cfgraph_;
-    // shape_id_gen = shape_id_gen_;
-
-    // handled.insert(
-    // *entry,
-    // HandledShape {
-    // shape: inner_shape,
-    // entry_type,
-    // },
-    // );
-    // }
-
-    // let shape = Shape {
-    // id: shape_id,
-    // kind: ShapeKind::Multi(MultipleShape {
-    // handled,
-    // break_count,
-    // }),
-    // next: None,
-    // };
-    // let mut next_subset = CFGSubset {
-    // entries,
-    // next_entries,
-    // blocks,
-    // cfgraph,
-    // shape_id_gen,
-    // };
-    // next_subset.swap_entries();
-
-    // Some((shape, next_subset))
-    // }
+        Some((shape, next_subset))
+    }
 
     // fn swap_entries(&mut self) {
     // ::std::mem::swap(self.entries, self.next_entries);
