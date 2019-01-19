@@ -12,6 +12,7 @@ type SVec<T> = SmallVec<[T; 4]>;
 
 type IndepSetMap = HashMap<BlockId, BlockSet>;
 
+#[derive(Debug)]
 struct CFGSubset<'a> {
     blocks: &'a mut BlockSet,
     entries: &'a mut BlockSet,
@@ -48,6 +49,10 @@ fn process<'a, L, C>(
     let mut prev: &mut Link<L, C> = &mut None;
     let mut multi_entry_type: EntryType = EntryType::Checked;
 
+    // this macro (and the general shape of process function) is more or less a
+    // direct translate of Emscript relooper C++ implementation there are probably
+    // more ideomatic rust ways of doing things, but for now at least, keep it
+    // close to the official version
     macro_rules! make {
         ($call: expr) => {{
             let (s, next_subset) = $call?;
@@ -382,7 +387,6 @@ impl<'a> CFGSubset<'a> {
         for (entry, targets) in indep_groups.iter_mut() {
             if targets.is_empty() {
                 next_entries.insert(*entry);
-                blocks.remove(*entry);
                 continue;
             }
 
@@ -523,6 +527,7 @@ mod tests {
 
         graph.add_edge(a, b, Branch::Raw(Some("true")));
         graph.add_edge(a, c, Branch::Raw(Some("false")));
+        graph.add_edge(b, c, Branch::Raw(Some("false")));
         // graph.add_edge(c, b, Branch::Raw(Some("false")));
         // graph.add_edge(c, d, Branch::Raw(Some("break")));
 
@@ -547,7 +552,7 @@ mod tests {
 
         let shape = process(subset, &mut env);
 
-        println!("{:#?}", shape.unwrap());
+        eprintln!("{:#?}", shape.unwrap());
 
         assert!(false);
     }
