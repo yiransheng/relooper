@@ -35,7 +35,7 @@ pub trait StructedAst {
 
     fn join(self, other: Self) -> Self;
 
-    fn wrap_in_loop(self, shape_id: Option<ShapeId>) -> Self;
+    fn wrap_in_loop(self, shape_id: ShapeId) -> Self;
 
     fn wrap_in_block(self, shape_id: ShapeId) -> Self;
 
@@ -50,7 +50,7 @@ impl<E> Shape<E, E> {
         let head: S = match &self.kind {
             ShapeKind::Simple(s) => s.render(),
             ShapeKind::Multi(s) => s.render(self.id),
-            ShapeKind::Loop(s) => s.render(Some(self.id)),
+            ShapeKind::Loop(s) => s.render(self.id),
             ShapeKind::Fused(s) => s.render(),
         };
         if let Some(ref next) = self.next {
@@ -159,7 +159,7 @@ impl<E> MultipleShape<E, E> {
     }
 }
 impl<E> LoopShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: Option<ShapeId>) -> S
+    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
     where
         E: AsRef<S::Expr>,
     {
@@ -192,9 +192,8 @@ mod tests {
         If(String, Box<Ast>),
         ElseIf(String, Box<Ast>),
         Else(Box<Ast>),
-        Loop(Option<usize>, Box<Ast>),
-        Block(usize, Box<Ast>),
-        Program(Vec<Ast>),
+        Loop(usize, Box<Ast>),
+        Block(Option<usize>, Vec<Ast>),
     }
 
     impl StructedAst for Ast {
@@ -238,22 +237,22 @@ mod tests {
 
         fn join(mut self, other: Self) -> Self {
             match &mut self {
-                Ast::Program(xs) => {
+                Ast::Block(_, xs) => {
                     xs.push(other);
                     self
                 }
-                _ => Ast::Program(vec![self, other]),
+                _ => Ast::Block(None, vec![self, other]),
             }
         }
 
-        fn wrap_in_loop(self, shape_id: Option<ShapeId>) -> Self {
-            let id = shape_id.map(|id| id.index());
+        fn wrap_in_loop(self, shape_id: ShapeId) -> Self {
+            let id = shape_id.index();
             Ast::Loop(id, Box::new(self))
         }
 
         fn wrap_in_block(self, shape_id: ShapeId) -> Self {
             let id = shape_id.index();
-            Ast::Block(id, Box::new(self))
+            Ast::Block(Some(id), vec![self])
         }
 
         fn handled(self, cond_type: CondType<&Self::Expr>) -> Self {
