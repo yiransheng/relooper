@@ -1,3 +1,5 @@
+use petgraph::Direction;
+
 use crate::process::{process, CFGSubset, GraphEnv};
 use crate::render::StructedAst;
 use crate::shapes::*;
@@ -36,6 +38,19 @@ impl<L, C> Relooper<L, C> {
         self.cfgraph.add_node(Block::Raw(block))
     }
     pub fn add_branch(&mut self, a: BlockId, b: BlockId, cond: Option<C>) {
+        // let default_branch_exists = self
+        // .cfgraph
+        // .neighbors_directed(a, Direction::Outgoing)
+        // .filter_map(|t| self.cfgraph.find_edge(a, t))
+        // .filter_map(|e| self.cfgraph.edge_weight(e))
+        // .any(|b| {
+        // if let Branch::Raw(None) = b {
+        // true
+        // } else {
+        // false
+        // }
+        // });
+
         self.cfgraph.add_edge(a, b, Branch::Raw(cond));
     }
 
