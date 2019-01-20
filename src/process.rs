@@ -208,6 +208,7 @@ impl<'a> CFGSubset<'a> {
         // create shape
         let kind = SimpleShape {
             internal: block,
+            block_id: internal_id,
             branches_out: shape_branches_out,
         };
 

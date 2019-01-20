@@ -21,6 +21,7 @@ pub enum ShapeKind<L, C> {
 
 #[derive(Debug)]
 pub struct SimpleShape<L, C> {
+    pub block_id: BlockId,
     pub internal: L,
     pub branches_out: HashMap<BlockId, ProcessedBranch<C>>,
 }
@@ -28,12 +29,6 @@ pub struct SimpleShape<L, C> {
 #[derive(Debug)]
 pub struct LoopShape<L, C> {
     pub inner: Box<Shape<L, C>>,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum EntryType {
-    Checked,
-    Direct,
 }
 
 #[derive(Debug)]
@@ -70,6 +65,22 @@ impl<L, C> SimpleShape<L, C> {
     ) -> impl Iterator<Item = &ProcessedBranch<C>> + 'a {
         self.branches_out.values().filter(|b| b.data.is_some())
     }
+}
+
+pub fn find_branch_target_entry_type<L, C>(
+    branch: &ProcessedBranch<C>,
+    root_shape: &Shape<L, C>,
+) -> EntryType {
+    root_shape
+        .find_shape(branch.ancestor)
+        .and_then(|shape| match branch.flow_type {
+            FlowType::Continue => shape.target_entry_type(branch.target),
+            _ => shape
+                .next
+                .as_ref()
+                .and_then(|s| s.target_entry_type(branch.target)),
+        })
+        .unwrap_or(EntryType::Checked)
 }
 
 impl<L, C> Shape<L, C> {
@@ -109,5 +120,85 @@ impl<L, C> Shape<L, C> {
 
             unreachable!()
         });
+    }
+
+    fn find_shape(&self, id: ShapeId) -> Option<&Self> {
+        if self.id == id {
+            return Some(self);
+        }
+        match &self.kind {
+            ShapeKind::Loop(LoopShape { inner }) => {
+                if let Some(s) = inner.find_shape(id) {
+                    return Some(s);
+                }
+            }
+            ShapeKind::Multi(shape) => {
+                for (_, shape) in shape.handled.iter() {
+                    if let Some(s) = shape.shape.find_shape(id) {
+                        return Some(s);
+                    }
+                }
+            }
+            ShapeKind::Fused(fused) => {
+                for (_, shape) in fused.multi.handled.iter() {
+                    if let Some(s) = shape.shape.find_shape(id) {
+                        return Some(s);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        self.next.as_ref().and_then(|s| s.find_shape(id))
+    }
+
+    fn target_entry_type(&self, target: BlockId) -> Option<EntryType> {
+        // Returning Some(EntryType::Checked) is always correct here
+        //
+        // However, we would like to identify situations EntryType::Direct
+        // Can be used. In render type, this avoids setting label for
+        // control flow. &self should be the ancestor or immediate successor
+        // of the ancestor depends on flow type (see pub fn above)
+        //
+        // Any ancestor -.next-> Simple: Direct
+        // Any ancestor -.next-> Loop { inner }: recurse(inner, target)
+        // Any ancestor -.next-> Multi handled : Direct if "fused", Checked otherwise
+        // Any ancestor -.next-> Multi -> ... -> target: Checked (not handled in multi)
+
+        match &self.kind {
+            ShapeKind::Simple(s) if s.block_id == target => {
+                return Some(EntryType::Direct);
+            }
+            ShapeKind::Simple(_) => {}
+            ShapeKind::Loop(LoopShape { inner }) => {
+                if let Some(t) = inner.target_entry_type(target) {
+                    return Some(t);
+                }
+            }
+            ShapeKind::Multi(shape) => {
+                for (t, shape) in shape.handled.iter() {
+                    if *t == target {
+                        return Some(shape.entry_type);
+                    }
+                }
+                // not handled
+                return Some(EntryType::Checked);
+            }
+            ShapeKind::Fused(fused) => {
+                if fused.simple.block_id == target {
+                    return Some(EntryType::Direct);
+                }
+
+                for (t, shape) in fused.multi.handled.iter() {
+                    if *t == target {
+                        return Some(shape.entry_type);
+                    }
+                }
+                // no handled
+                return Some(EntryType::Checked);
+            }
+        }
+
+        self.next.as_ref().and_then(|s| s.target_entry_type(target))
     }
 }

@@ -16,7 +16,7 @@ impl<E> Relooper<E, E> {
 
         shape.map(|mut shape| {
             shape.fuse();
-            shape.render()
+            shape.render(&shape)
         })
     }
 }

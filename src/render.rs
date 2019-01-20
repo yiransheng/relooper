@@ -1,7 +1,7 @@
 use std::convert::AsRef;
 
 use crate::shapes::*;
-use crate::types::{BlockId, FlowType, ProcessedBranch, ShapeId};
+use crate::types::{BlockId, EntryType, FlowType, ProcessedBranch, ShapeId};
 
 #[derive(Debug)]
 pub enum CondType<C> {
@@ -43,18 +43,18 @@ pub trait StructedAst {
 }
 
 impl<E> Shape<E, E> {
-    pub fn render<S: StructedAst>(&self) -> S
+    pub fn render<S: StructedAst>(&self, root: &Self) -> S
     where
         E: AsRef<S::Expr>,
     {
         let head: S = match &self.kind {
-            ShapeKind::Simple(s) => s.render(None),
-            ShapeKind::Multi(s) => s.render(self.id),
-            ShapeKind::Loop(s) => s.render(self.id),
-            ShapeKind::Fused(s) => s.render(self.id),
+            ShapeKind::Simple(s) => s.render(None, root),
+            ShapeKind::Multi(s) => s.render(self.id, root),
+            ShapeKind::Loop(s) => s.render(self.id, root),
+            ShapeKind::Fused(s) => s.render(self.id, root),
         };
         if let Some(ref next) = self.next {
-            head.join(next.render())
+            head.join(next.render(root))
         } else {
             head
         }
@@ -63,10 +63,10 @@ impl<E> Shape<E, E> {
 impl<E> SimpleShape<E, E> {
     fn render_branch<S: StructedAst>(
         &self,
-        set_label: bool,
         branch: &ProcessedBranch<E>,
         fused_multi: Option<&MultipleShape<E, E>>,
-    ) -> S
+        root: &Shape<E, E>,
+    ) -> Option<S>
     where
         E: AsRef<S::Expr>,
     {
@@ -75,35 +75,55 @@ impl<E> SimpleShape<E, E> {
         {
             assert!(branch.flow_type == FlowType::Direct);
             assert!(handled_shape.entry_type != EntryType::Checked);
-            handled_shape.shape.render()
+            Some(handled_shape.shape.render(root))
         } else {
+            let target_entry_type = find_branch_target_entry_type(branch, root);
+            let set_label = Some(branch.target)
+                .filter(|_| target_entry_type == EntryType::Checked);
+
             let exit = match branch.flow_type {
-                FlowType::Direct => Exit {
-                    set_label: Some(branch.target).filter(|_| set_label),
-                    flow: Flow::Direct,
-                },
+                FlowType::Direct => {
+                    if set_label.is_some() {
+                        Exit {
+                            set_label,
+                            flow: Flow::Direct,
+                        }
+                    } else {
+                        return None;
+                    }
+                }
                 FlowType::Continue => Exit {
-                    set_label: Some(branch.target).filter(|_| set_label),
+                    set_label,
                     flow: Flow::Continue(Some(branch.ancestor)),
                 },
                 FlowType::Break => Exit {
-                    set_label: Some(branch.target).filter(|_| set_label),
+                    set_label,
                     flow: Flow::Break(Some(branch.ancestor)),
                 },
             };
-            S::exit(exit)
+            Some(S::exit(exit))
         }
     }
     fn render<S: StructedAst>(
         &self,
         fused_multi: Option<&MultipleShape<E, E>>,
+        root: &Shape<E, E>,
     ) -> S
     where
         E: AsRef<S::Expr>,
     {
         let mut output: S = S::expr(self.internal.as_ref());
 
-        for (is_first, b) in flag_first(self.conditional_branches()) {
+        let exits = self.conditional_branches().filter_map(|b| {
+            let exit: Option<S> = self.render_branch(b, fused_multi, root);
+            exit.map(|e| (b, e))
+        });
+
+        let mut has_conditional_branches = false;
+
+        for (is_first, (b, exit)) in flag_first(exits) {
+            has_conditional_branches = true;
+
             let cond = b.data.as_ref().unwrap();
             let cond = cond.as_ref();
             let cond_type: CondType<&S::Expr> = if is_first {
@@ -111,33 +131,32 @@ impl<E> SimpleShape<E, E> {
             } else {
                 CondType::ElseIf(cond)
             };
-            let exit: S = self.render_branch(true, b, fused_multi);
             let exit = exit.handled(cond_type);
 
             output = output.join(exit);
         }
 
         if let Some(b) = self.default_branch() {
-            let has_multiple_targets = self.branches_out.len() > 1;
-            let exit: S =
-                self.render_branch(has_multiple_targets, b, fused_multi);
+            let exit: Option<S> = self.render_branch(b, fused_multi, root);
 
-            if has_multiple_targets {
-                let cond_type: CondType<&S::Expr> = CondType::Else;
-                let exit = exit.handled(cond_type);
-                output = output.join(exit);
-            } else {
-                output = output.join(exit);
+            if let Some(exit) = exit {
+                if has_conditional_branches {
+                    let cond_type: CondType<&S::Expr> = CondType::Else;
+                    let exit = exit.handled(cond_type);
+                    output = output.join(exit);
+                } else {
+                    output = output.join(exit);
+                }
             }
-            // } else {
-            // output = output.join(S::trap());
+        } else if has_conditional_branches {
+            output = output.join(S::trap());
         }
 
         output
     }
 }
 impl<E> MultipleShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
     where
         E: AsRef<S::Expr>,
     {
@@ -150,7 +169,7 @@ impl<E> MultipleShape<E, E> {
             } else {
                 CondType::ElseIfLabel(*target)
             };
-            let inner: S = inner_shape.shape.render();
+            let inner: S = inner_shape.shape.render(root);
             let inner: S = inner.handled(cond_type);
             if body.is_none() {
                 body = Some(inner);
@@ -167,20 +186,20 @@ impl<E> MultipleShape<E, E> {
     }
 }
 impl<E> LoopShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
     where
         E: AsRef<S::Expr>,
     {
-        let inner: S = self.inner.render();
+        let inner: S = self.inner.render(root);
         inner.wrap_in_loop(shape_id)
     }
 }
 impl<E> FusedShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
     where
         E: AsRef<S::Expr>,
     {
-        let inner: S = self.simple.render(Some(&self.multi));
+        let inner: S = self.simple.render(Some(&self.multi), root);
         if self.multi.break_count > 0 {
             inner.wrap_in_block(shape_id)
         } else {
@@ -454,9 +473,8 @@ mod tests {
         let d = relooper.add_block("// block d".to_string());
 
         relooper.add_branch(a, b, Some("a -> b".to_string()));
-        relooper.add_branch(a, c, None);
         relooper.add_branch(b, c, None);
-        relooper.add_branch(c, d, None);
+        relooper.add_branch(c, b, None);
         relooper.add_branch(b, d, Some("b -> d".to_string()));
 
         let ast: Ast = relooper.render(a).expect("Did not get shape");

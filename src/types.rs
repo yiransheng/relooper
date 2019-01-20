@@ -149,6 +149,7 @@ impl<C> Branch<C> {
                 flow_type,
                 ancestor,
                 target,
+                target_entry_type: EntryType::Checked,
             };
             *self = Branch::Processed(processed);
         } else {
@@ -157,12 +158,19 @@ impl<C> Branch<C> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum EntryType {
+    Checked,
+    Direct,
+}
+
 #[derive(Debug)]
 pub struct ProcessedBranch<C> {
     pub data: Option<C>,
     pub flow_type: FlowType,
     pub ancestor: ShapeId,
     pub target: BlockId,
+    pub target_entry_type: EntryType,
 }
 
 pub enum Block<L> {
