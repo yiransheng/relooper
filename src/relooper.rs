@@ -10,7 +10,7 @@ pub struct Relooper<L, C> {
 impl<E> Relooper<E, E> {
     pub fn render<S: StructedAst>(self, entry: BlockId) -> Option<S>
     where
-        E: AsRef<S::Expr>,
+        E: AsRef<S::Expr>, // E: ::std::fmt::Debug
     {
         let shape = self.calculate(entry);
 

@@ -307,7 +307,7 @@ impl<'a> CFGSubset<'a> {
     ) -> IndepSetMap {
         use std::ops::AddAssign;
 
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, Clone, Copy, Eq, PartialEq)]
         enum Source {
             Only(BlockId),
             MoreThanOne,
@@ -324,36 +324,28 @@ impl<'a> CFGSubset<'a> {
             }
         }
 
-        let mut sources: HashMap<BlockId, Source> =
-            self.entries.iter().map(|e| (e, Source::Only(e))).collect();
+        let mut sources: HashMap<BlockId, Source> = HashMap::new();
 
-        let mut queue: VecDeque<(BlockId, BlockId)> =
-            self.entries.iter().map(|e| (e, e)).collect();
-
-        let _i = 0;
+        let mut queue: VecDeque<(Source, BlockId)> =
+            self.entries.iter().map(|e| (Source::Only(e), e)).collect();
 
         while let Some((entry, block)) = queue.pop_front() {
             let mut src = match sources.get(&block) {
                 Some(src) => *src,
-                None => Source::Only(entry),
+                None => entry,
             };
-            src += Source::Only(entry);
+            src += entry;
             sources.insert(block, src);
-
-            if let Source::MoreThanOne = src {
-                continue;
-            }
 
             for next_block in env.blocks_out(block, &*self.blocks) {
                 match sources.get(&next_block) {
-                    Some(Source::MoreThanOne) => {}
-                    Some(Source::Only(s)) if *s == entry => {}
-                    Some(Source::Only(_)) => {
-                        sources.insert(next_block, Source::MoreThanOne);
+                    Some(src) if *src != entry => {
+                        queue.push_back((entry, next_block));
                     }
                     None => {
                         queue.push_back((entry, next_block));
                     }
+                    _ => {}
                 }
             }
         }

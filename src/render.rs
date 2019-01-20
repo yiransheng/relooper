@@ -250,7 +250,7 @@ mod tests {
 
         fn join(mut self, other: Self) -> Self {
             match &mut self {
-                Ast::Block(_, xs) => {
+                Ast::Block(None, xs) => {
                     xs.push(other);
                     self
                 }
@@ -450,10 +450,10 @@ mod tests {
 
         let a = relooper.add_block("x = 0".to_string());
         let b = relooper.add_block("// block b".to_string());
-        let c = relooper.add_block("x = x + 1".to_string());
-        let d = relooper.add_block("ok".to_string());
+        let c = relooper.add_block("// block c".to_string());
+        let d = relooper.add_block("// block d".to_string());
 
-        relooper.add_branch(a, b, Some("x == 1".to_string()));
+        relooper.add_branch(a, b, Some("a -> b".to_string()));
         relooper.add_branch(a, c, None);
         relooper.add_branch(b, c, None);
         relooper.add_branch(c, d, None);
