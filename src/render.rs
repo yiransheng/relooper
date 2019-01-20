@@ -23,7 +23,7 @@ pub enum Flow {
 }
 
 pub trait StructedAst {
-    type Expr;
+    type Expr: ?Sized;
 
     fn trap() -> Self;
 
@@ -163,13 +163,13 @@ mod tests {
         If(String, Box<Ast>),
         ElseIf(String, Box<Ast>),
         Else(Box<Ast>),
-        Loop(Option<usize>, Box(Ast)),
-        Block(usize, Box(Ast)),
+        Loop(Option<usize>, Box<Ast>),
+        Block(usize, Box<Ast>),
         Program(Vec<Ast>),
     }
 
-    impl<'a> StructedAst for Ast {
-        type Expr = &'a str;
+    impl StructedAst for Ast {
+        type Expr = str;
 
         fn trap() -> Self {
             Ast::Panic
@@ -179,41 +179,41 @@ mod tests {
             Ast::Node(expr.to_string())
         }
 
-        fn exit(b: Exit) -> Self {
+        fn exit(exit: Exit) -> Self {
             let label = if let Some(bid) = exit.set_label {
-                format!("__label__ = {}\n", bid.index());
+                format!("__label__ = {}\n", bid.index())
             } else {
-                "\n".to_string();
+                "\n".to_string()
             };
 
-            match b.flow {
+            match exit.flow {
                 Flow::Direct => Ast::Node(label),
                 Flow::Continue(Some(shape)) => {
                     let code = format!("{}continue 'L{}", label, shape.index());
-                    Node::Ast(code)
+                    Ast::Node(code)
                 }
                 Flow::Continue(None) => {
                     let code = format!("{}continue", label);
-                    Node::Ast(code)
+                    Ast::Node(code)
                 }
                 Flow::Break(Some(shape)) => {
                     let code = format!("{}break 'L{}", label, shape.index());
-                    Node::Ast(code)
+                    Ast::Node(code)
                 }
                 Flow::Break(None) => {
                     let code = format!("{}break", label);
-                    Node::Ast(code)
+                    Ast::Node(code)
                 }
             }
         }
 
-        fn join(self, other: Self) -> Self {
-            match self {
-                Ast::Program(mut xs) => {
-                    xs.push(Box::new(other));
+        fn join(mut self, other: Self) -> Self {
+            match &mut self {
+                Ast::Program(xs) => {
+                    xs.push(other);
                     self
                 }
-                _ => Ast::Program(vec![Box::new(self), Box::new(other)]),
+                _ => Ast::Program(vec![self, other]),
             }
         }
 
