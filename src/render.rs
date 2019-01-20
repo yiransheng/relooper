@@ -1,7 +1,7 @@
 use std::convert::AsRef;
 
 use crate::shapes::*;
-use crate::types::{BlockId, FlowType, ShapeId};
+use crate::types::{BlockId, FlowType, ProcessedBranch, ShapeId};
 
 #[derive(Debug)]
 pub enum CondType<C> {
@@ -48,7 +48,7 @@ impl<E> Shape<E, E> {
         E: AsRef<S::Expr>,
     {
         let head: S = match &self.kind {
-            ShapeKind::Simple(s) => s.render(),
+            ShapeKind::Simple(s) => s.render(None),
             ShapeKind::Multi(s) => s.render(self.id),
             ShapeKind::Loop(s) => s.render(self.id),
             ShapeKind::Fused(s) => s.render(),
@@ -61,7 +61,43 @@ impl<E> Shape<E, E> {
     }
 }
 impl<E> SimpleShape<E, E> {
-    fn render<S: StructedAst>(&self) -> S
+    fn render_branch<S: StructedAst>(
+        &self,
+        set_label: bool,
+        branch: &ProcessedBranch<E>,
+        fused_multi: Option<&MultipleShape<E, E>>,
+    ) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
+        if let Some(handled_shape) =
+            fused_multi.and_then(|s| s.handled.get(&branch.target))
+        {
+            assert!(branch.flow_type == FlowType::Direct);
+            assert!(handled_shape.entry_type != EntryType::Checked);
+            handled_shape.shape.render()
+        } else {
+            let exit = match branch.flow_type {
+                FlowType::Direct => Exit {
+                    set_label: Some(branch.target).filter(|_| set_label),
+                    flow: Flow::Direct,
+                },
+                FlowType::Continue => Exit {
+                    set_label: Some(branch.target).filter(|_| set_label),
+                    flow: Flow::Continue(Some(branch.ancestor)),
+                },
+                FlowType::Break => Exit {
+                    set_label: Some(branch.target).filter(|_| set_label),
+                    flow: Flow::Break(Some(branch.ancestor)),
+                },
+            };
+            S::exit(exit)
+        }
+    }
+    fn render<S: StructedAst>(
+        &self,
+        fused_multi: Option<&MultipleShape<E, E>>,
+    ) -> S
     where
         E: AsRef<S::Expr>,
     {
@@ -75,58 +111,22 @@ impl<E> SimpleShape<E, E> {
             } else {
                 CondType::ElseIf(cond)
             };
-            let exit = match b.flow_type {
-                FlowType::Direct => Exit {
-                    set_label: Some(b.target),
-                    flow: Flow::Direct,
-                },
-                FlowType::Continue => Exit {
-                    set_label: Some(b.target),
-                    flow: Flow::Continue(Some(b.ancestor)),
-                },
-                FlowType::Break => Exit {
-                    set_label: Some(b.target),
-                    flow: Flow::Break(Some(b.ancestor)),
-                },
-            };
-            let exit = S::exit(exit).handled(cond_type);
+            let exit: S = self.render_branch(true, b, fused_multi);
+            let exit = exit.handled(cond_type);
+
             output = output.join(exit);
         }
 
         if let Some(b) = self.default_branch() {
             let has_multiple_targets = self.branches_out.len() > 1;
-            let exit = match b.flow_type {
-                FlowType::Direct => Exit {
-                    set_label: if has_multiple_targets {
-                        Some(b.target)
-                    } else {
-                        None
-                    },
-                    flow: Flow::Direct,
-                },
-                FlowType::Continue => Exit {
-                    set_label: if has_multiple_targets {
-                        Some(b.target)
-                    } else {
-                        None
-                    },
-                    flow: Flow::Continue(Some(b.ancestor)),
-                },
-                FlowType::Break => Exit {
-                    set_label: if has_multiple_targets {
-                        Some(b.target)
-                    } else {
-                        None
-                    },
-                    flow: Flow::Break(Some(b.ancestor)),
-                },
-            };
+            let exit: S =
+                self.render_branch(has_multiple_targets, b, fused_multi);
+
             if has_multiple_targets {
                 let cond_type: CondType<&S::Expr> = CondType::Else;
-                let exit = S::exit(exit).handled(cond_type);
+                let exit = exit.handled(cond_type);
                 output = output.join(exit);
             } else {
-                let exit = S::exit(exit);
                 output = output.join(exit);
             }
             // } else {
@@ -176,7 +176,7 @@ impl<E> FusedShape<E, E> {
     where
         E: AsRef<S::Expr>,
     {
-        unimplemented!()
+        self.simple.render(Some(&self.multi))
     }
 }
 
@@ -440,14 +440,13 @@ mod tests {
         let mut relooper: Relooper<String, String> = Relooper::new();
 
         let a = relooper.add_block("x = 0".to_string());
-        let b = relooper.add_block("// test".to_string());
+        let b = relooper.add_block("// block b".to_string());
         let c = relooper.add_block("x = x + 1".to_string());
         let d = relooper.add_block("ok".to_string());
 
-        relooper.add_branch(a, b, None);
-        relooper.add_branch(b, c, None);
-        relooper.add_branch(c, b, None);
-        relooper.add_branch(b, d, Some("x >= 10".to_string()));
+        relooper.add_branch(a, b, Some("x == 1".to_string()));
+        relooper.add_branch(a, c, None);
+        relooper.add_branch(c, d, None);
 
         let ast: Ast = relooper.render(a).unwrap();
 

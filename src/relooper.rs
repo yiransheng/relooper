@@ -14,8 +14,8 @@ impl<E> Relooper<E, E> {
     {
         let shape = self.calculate(entry);
 
-        shape.map(|shape| {
-            // shape.fuse();
+        shape.map(|mut shape| {
+            shape.fuse();
             shape.render()
         })
     }
