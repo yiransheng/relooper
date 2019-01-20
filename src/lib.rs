@@ -5,6 +5,8 @@ mod shapes;
 mod types;
 
 pub use relooper::Relooper;
+pub use render::{CondType, Exit, Flow, StructedAst};
+pub use types::{BlockId, ShapeId};
 
 #[cfg(test)]
 mod tests {

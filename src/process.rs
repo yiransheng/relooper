@@ -110,7 +110,7 @@ pub fn process<'a, L, C>(
     }
 
     loop {
-        if subset.entries.len() == 0 {
+        if subset.entries.is_empty() {
             return shape;
         }
         if subset.entries.len() == 1 {
@@ -156,7 +156,7 @@ impl<'a> CFGSubset<'a> {
     }
 
     fn make_simple<L, C>(
-        mut self,
+        self,
         env: &mut GraphEnv<L, C>,
     ) -> Option<(Shape<L, C>, Self)> {
         let CFGSubset {
@@ -220,7 +220,7 @@ impl<'a> CFGSubset<'a> {
         Some((shape, next_subset))
     }
     fn make_loop<L, C>(
-        mut self,
+        self,
         env: &mut GraphEnv<L, C>,
     ) -> Option<(Shape<L, C>, Self)> {
         let CFGSubset {
@@ -330,7 +330,7 @@ impl<'a> CFGSubset<'a> {
         let mut queue: VecDeque<(BlockId, BlockId)> =
             self.entries.iter().map(|e| (e, e)).collect();
 
-        let mut i = 0;
+        let _i = 0;
 
         while let Some((entry, block)) = queue.pop_front() {
             let mut src = match sources.get(&block) {
@@ -366,9 +366,9 @@ impl<'a> CFGSubset<'a> {
 
         for (block, src) in sources.iter() {
             if let Source::Only(entry) = src {
-                indep_groups.get_mut(entry).map(|set| {
+                if let Some(set) = indep_groups.get_mut(entry) {
                     set.insert(*block);
-                });
+                }
             }
         }
 
@@ -376,7 +376,7 @@ impl<'a> CFGSubset<'a> {
     }
 
     fn make_multiple<L, C>(
-        mut self,
+        self,
         entry_type: EntryType,
         indep_groups: &mut IndepSetMap,
         env: &mut GraphEnv<L, C>,
@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn test_it() {
         let mut graph: CFGraph<&'static str, &'static str> = CFGraph::default();
-        let mut shape_id_gen = ShapeIdGen::default();
+        let shape_id_gen = ShapeIdGen::default();
 
         let a = graph.add_node(Block::Raw("a"));
         let b = graph.add_node(Block::Raw("b"));

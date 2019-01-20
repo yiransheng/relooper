@@ -12,12 +12,17 @@ impl<E> Relooper<E, E> {
     where
         E: AsRef<S::Expr>,
     {
-        let mut shape = self.calculate(entry);
+        let shape = self.calculate(entry);
 
-        shape.map(|mut shape| {
+        shape.map(|shape| {
             // shape.fuse();
             shape.render()
         })
+    }
+}
+impl<L, C> Default for Relooper<L, C> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
