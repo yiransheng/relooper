@@ -4,13 +4,7 @@ mod render;
 mod shapes;
 mod types;
 
-use std::marker::PhantomData;
-use std::ops::Index;
-
-use fixedbitset::FixedBitSet;
-use petgraph::graph::{DiGraph, EdgeIndex, IndexType, NodeIndex};
-
-use types::*;
+pub use relooper::Relooper;
 
 #[cfg(test)]
 mod tests {

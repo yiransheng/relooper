@@ -97,7 +97,11 @@ impl<E> SimpleShape<E, E> {
             let has_multiple_targets = self.branches_out.len() > 1;
             let exit = match b.flow_type {
                 FlowType::Direct => Exit {
-                    set_label: Some(b.target),
+                    set_label: if has_multiple_targets {
+                        Some(b.target)
+                    } else {
+                        None
+                    },
                     flow: Flow::Direct,
                 },
                 FlowType::Continue => Exit {
@@ -274,6 +278,56 @@ mod tests {
         }
     }
 
+    impl Ast {
+        fn print<W: io::Write>(&self, writer: &mut W) -> Result<(), io::Error> {
+            let mut f = PrettyFormatter::new();
+            self.fmt(&mut f, writer)
+        }
+        fn fmt<W: io::Write>(
+            &self,
+            f: &mut PrettyFormatter,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            match self {
+                Ast::Node(s) => f.write_node(s, writer),
+                Ast::Panic => f.write_node("unreachable!()", writer),
+                Ast::If(s, inner) => {
+                    f.write_if(s, writer)?;
+                    inner.fmt(f, writer)?;
+                    f.write_block_suffix(writer)
+                }
+                Ast::ElseIf(s, inner) => {
+                    f.write_else_if(s, writer)?;
+                    inner.fmt(f, writer)?;
+                    f.write_block_suffix(writer)
+                }
+                Ast::Else(inner) => {
+                    f.write_else(writer)?;
+                    inner.fmt(f, writer)?;
+                    f.write_block_suffix(writer)
+                }
+                Ast::Loop(id, inner) => {
+                    f.write_loop_prefix(*id, writer)?;
+                    inner.fmt(f, writer)?;
+                    f.write_block_suffix(writer)
+                }
+                Ast::Block(None, inners) => {
+                    for inner in inners {
+                        inner.fmt(f, writer)?;
+                    }
+                    Ok(())
+                }
+                Ast::Block(Some(id), inners) => {
+                    f.write_block_prefix(*id, writer)?;
+                    for inner in inners {
+                        inner.fmt(f, writer)?;
+                    }
+                    f.write_block_suffix(writer)
+                }
+            }
+        }
+    }
+
     #[derive(Clone, Debug)]
     pub struct PrettyFormatter<'a> {
         current_indent: usize,
@@ -281,17 +335,100 @@ mod tests {
     }
 
     impl<'a> PrettyFormatter<'a> {
-        fn write_node(&mut self, s: &str) -> Result<(), io::Error> {
+        fn new() -> Self {
+            PrettyFormatter::with_indent("  ")
+        }
+        fn with_indent(indent: &'a str) -> Self {
+            PrettyFormatter {
+                current_indent: 0,
+                indent: indent,
+            }
+        }
+        fn write_node<W: io::Write>(
+            &mut self,
+            s: &str,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            for line in s.lines() {
+                self.write_line(line, writer)?;
+            }
+            Ok(())
+        }
+        fn write_line<W: io::Write>(
+            &mut self,
+            s: &str,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            writeln!(writer, "{}", s)
+        }
+        fn write_if<W: io::Write>(
+            &mut self,
+            cond: &str,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            self.current_indent += 1;
+            writeln!(writer, "if {} {}", cond, "{")
+        }
+        fn write_else_if<W: io::Write>(
+            &mut self,
+            cond: &str,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            self.current_indent += 1;
+            writeln!(writer, "else if {} {}", cond, "{")
+        }
+        fn write_else<W: io::Write>(
+            &mut self,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            self.current_indent += 1;
+            writeln!(writer, "else {}", "{")
+        }
+        fn write_loop_prefix<W: io::Write>(
+            &mut self,
+            id: usize,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            writeln!(writer, "'L{}: loop {}", id, "{")?;
+
+            self.current_indent += 1;
+            Ok(())
+        }
+        fn write_block_prefix<W: io::Write>(
+            &mut self,
+            id: usize,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            indent(writer, self.current_indent, self.indent)?;
+            writeln!(writer, "'L{}: {}", id, "{")?;
+
+            self.current_indent += 1;
+            Ok(())
+        }
+        fn write_block_suffix<W: io::Write>(
+            &mut self,
+            writer: &mut W,
+        ) -> Result<(), io::Error> {
+            self.current_indent -= 1;
+
+            indent(writer, self.current_indent, self.indent)?;
+            writeln!(writer, "{}", "}")?;
+
             Ok(())
         }
     }
 
-    fn indent<W: ?Sized>(wr: &mut W, n: usize, s: &[u8]) -> io::Result<()>
+    fn indent<W: ?Sized>(wr: &mut W, n: usize, s: &str) -> io::Result<()>
     where
         W: io::Write,
     {
         for _ in 0..n {
-            wr.write_all(s)?;
+            wr.write_all(s.as_bytes())?;
         }
 
         Ok(())
@@ -314,7 +451,11 @@ mod tests {
 
         let ast: Ast = relooper.render(a).unwrap();
 
-        println!("{:#?}", ast);
+        let stdout = io::stdout();
+        {
+            let mut out = stdout.lock();
+            ast.print(&mut out);
+        }
 
         assert!(false);
     }
