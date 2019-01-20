@@ -30,7 +30,7 @@ pub struct LoopShape<L, C> {
     pub inner: Box<Shape<L, C>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum EntryType {
     Checked,
     Direct,
@@ -50,12 +50,30 @@ pub struct MultipleShape<L, C> {
 
 #[derive(Debug)]
 pub struct FusedShape<L, C> {
-    simple: SimpleShape<L, C>,
-    multi: MultipleShape<L, C>,
+    pub simple: SimpleShape<L, C>,
+    pub multi: MultipleShape<L, C>,
+}
+
+impl<L, C> SimpleShape<L, C> {
+    pub fn default_branch(&self) -> Option<&ProcessedBranch<C>> {
+        let mut branches =
+            self.branches_out.values().filter(|b| b.data.is_none());
+        let ret = branches.next();
+
+        assert!(branches.count() == 0, "More than one default branch");
+
+        ret
+    }
+
+    pub fn conditional_branches<'a>(
+        &'a self,
+    ) -> impl Iterator<Item = &ProcessedBranch<C>> + 'a {
+        self.branches_out.values().filter(|b| b.data.is_some())
+    }
 }
 
 impl<L, C> Shape<L, C> {
-    fn fuse(&mut self) {
+    pub fn fuse(&mut self) {
         match &mut self.kind {
             ShapeKind::Simple(_) => self.fuse_simple(),
             ShapeKind::Loop(LoopShape { inner }) => inner.fuse(),

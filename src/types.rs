@@ -14,7 +14,7 @@ pub struct ShapeIdGen {
     counter: usize,
 }
 impl ShapeIdGen {
-    pub(crate) fn next_shape_id(&mut self) -> ShapeId {
+    pub fn next_shape_id(&mut self) -> ShapeId {
         let sid = ShapeId::new(self.counter);
         self.counter += 1;
         sid
@@ -33,20 +33,20 @@ impl<Ix: IndexType> ShapeId<Ix> {
     }
 }
 
-pub(crate) type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
+pub type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
 
-pub(crate) type BlockId = NodeIndex<DefaultIndex>;
+pub type BlockId = NodeIndex<DefaultIndex>;
 
-pub(crate) type BranchId = EdgeIndex<DefaultIndex>;
+pub type BranchId = EdgeIndex<DefaultIndex>;
 
 #[derive(Debug, Clone)]
-pub(crate) struct BlockSet<Ix = BlockId> {
+pub struct BlockSet<Ix = BlockId> {
     inner: FixedBitSet,
     _idx_ty: PhantomData<Ix>,
 }
 
 impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
-    pub(crate) fn new_empty(size: usize) -> Self {
+    pub fn new_empty(size: usize) -> Self {
         BlockSet {
             inner: FixedBitSet::with_capacity(size),
             _idx_ty: PhantomData,
@@ -54,10 +54,10 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     }
     // panics if index out of bound
     #[inline]
-    pub(crate) fn insert(&mut self, idx: NodeIndex<Ix>) -> bool {
+    pub fn insert(&mut self, idx: NodeIndex<Ix>) -> bool {
         self.inner.put(idx.index())
     }
-    pub(crate) fn extend<I>(&mut self, idx: I)
+    pub fn extend<I>(&mut self, idx: I)
     where
         I: IntoIterator<Item = NodeIndex<Ix>>,
     {
@@ -67,22 +67,22 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     }
     // panics if index out of bound
     #[inline]
-    pub(crate) fn remove(&mut self, idx: NodeIndex<Ix>) {
+    pub fn remove(&mut self, idx: NodeIndex<Ix>) {
         self.inner.set(idx.index(), false)
     }
     #[inline]
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.inner.clear();
     }
-    pub(crate) fn contains(&self, idx: NodeIndex<Ix>) -> bool {
+    pub fn contains(&self, idx: NodeIndex<Ix>) -> bool {
         self.inner[idx.index()]
     }
     #[inline]
-    pub(crate) fn sample_one(&self) -> Option<NodeIndex<Ix>> {
+    pub fn sample_one(&self) -> Option<NodeIndex<Ix>> {
         self.inner.ones().next().map(NodeIndex::new)
     }
     #[inline]
-    pub(crate) fn take_one(&mut self) -> Option<NodeIndex<Ix>> {
+    pub fn take_one(&mut self) -> Option<NodeIndex<Ix>> {
         if let Some(i) = self.inner.ones().next() {
             self.inner.set(i, false);
             Some(NodeIndex::new(i))
@@ -92,16 +92,14 @@ impl<Ix: IndexType> BlockSet<NodeIndex<Ix>> {
     }
 
     #[inline]
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.inner.count_ones(..)
     }
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub(crate) fn iter<'a>(
-        &'a self,
-    ) -> impl Iterator<Item = NodeIndex<Ix>> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = NodeIndex<Ix>> + 'a {
         self.inner.ones().map(NodeIndex::new)
     }
 }
@@ -126,7 +124,7 @@ pub enum Branch<C> {
 }
 
 impl<C> Branch<C> {
-    pub(crate) fn take(&mut self) -> Option<ProcessedBranch<C>> {
+    pub fn take(&mut self) -> Option<ProcessedBranch<C>> {
         let b = ::std::mem::replace(self, Branch::Registered);
 
         if let Branch::Processed(b) = b {
@@ -137,7 +135,7 @@ impl<C> Branch<C> {
         }
     }
 
-    pub(crate) fn solipsize(
+    pub fn solipsize(
         &mut self,
         target: BlockId,
         flow_type: FlowType,
