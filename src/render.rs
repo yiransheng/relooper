@@ -51,7 +51,7 @@ impl<E> Shape<E, E> {
             ShapeKind::Simple(s) => s.render(None),
             ShapeKind::Multi(s) => s.render(self.id),
             ShapeKind::Loop(s) => s.render(self.id),
-            ShapeKind::Fused(s) => s.render(),
+            ShapeKind::Fused(s) => s.render(self.id),
         };
         if let Some(ref next) = self.next {
             head.join(next.render())
@@ -152,7 +152,11 @@ impl<E> MultipleShape<E, E> {
             };
             let inner: S = inner_shape.shape.render();
             let inner: S = inner.handled(cond_type);
-            body = body.map(|body| body.join(inner));
+            if body.is_none() {
+                body = Some(inner);
+            } else {
+                body = body.map(|body| body.join(inner));
+            }
         }
 
         if self.break_count > 0 {
@@ -172,11 +176,16 @@ impl<E> LoopShape<E, E> {
     }
 }
 impl<E> FusedShape<E, E> {
-    fn render<S: StructedAst>(&self) -> S
+    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
     where
         E: AsRef<S::Expr>,
     {
-        self.simple.render(Some(&self.multi))
+        let inner: S = self.simple.render(Some(&self.multi));
+        if self.multi.break_count > 0 {
+            inner.wrap_in_block(shape_id)
+        } else {
+            inner
+        }
     }
 }
 
@@ -446,9 +455,11 @@ mod tests {
 
         relooper.add_branch(a, b, Some("x == 1".to_string()));
         relooper.add_branch(a, c, None);
+        relooper.add_branch(b, c, None);
         relooper.add_branch(c, d, None);
+        relooper.add_branch(b, d, Some("b -> d".to_string()));
 
-        let ast: Ast = relooper.render(a).unwrap();
+        let ast: Ast = relooper.render(a).expect("Did not get shape");
 
         let stdout = io::stdout();
         {

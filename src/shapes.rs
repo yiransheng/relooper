@@ -97,6 +97,7 @@ impl<L, C> Shape<L, C> {
         };
         let mut next = self.next.take().unwrap();
         next.fuse();
+        self.id = next.id;
         self.next = next.next.take();
 
         take_mut::take(&mut self.kind, |kind| {
