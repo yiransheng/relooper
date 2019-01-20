@@ -108,12 +108,20 @@ impl<L, C> Shape<L, C> {
         };
         let mut next = self.next.take().unwrap();
         next.fuse();
-        self.id = next.id;
+        let new_id = next.id;
+        self.id = new_id;
         self.next = next.next.take();
 
         take_mut::take(&mut self.kind, |kind| {
-            if let ShapeKind::Simple(simple) = kind {
+            if let ShapeKind::Simple(mut simple) = kind {
                 if let ShapeKind::Multi(multi) = next.kind {
+                    for b in simple.branches_out.values_mut() {
+                        b.ancestor = new_id;
+                        // not handled
+                        if !multi.handled.contains_key(&b.target) {
+                            b.flow_type = FlowType::Break;
+                        }
+                    }
                     return ShapeKind::Fused(FusedShape { simple, multi });
                 }
             }
