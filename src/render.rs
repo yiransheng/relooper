@@ -156,6 +156,7 @@ fn flag_first<I: Iterator>(iter: I) -> impl Iterator<Item = (bool, I::Item)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
     enum Ast {
         Panic,
@@ -244,6 +245,29 @@ mod tests {
                 CondType::Else => Ast::Else(Box::new(self)),
             }
         }
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct PrettyFormatter<'a> {
+        current_indent: usize,
+        indent: &'a str,
+    }
+
+    impl<'a> PrettyFormatter<'a> {
+        fn write_node(&mut self, s: &str) -> Result<(), io::Error> {
+            Ok(())
+        }
+    }
+
+    fn indent<W: ?Sized>(wr: &mut W, n: usize, s: &[u8]) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        for _ in 0..n {
+            wr.write_all(s)?;
+        }
+
+        Ok(())
     }
 
     #[test]
