@@ -7,6 +7,20 @@ pub struct Relooper<L, C> {
     cfgraph: CFGraph<L, C>,
 }
 
+impl<E> Relooper<E, E> {
+    pub fn render<S: StructedAst>(self, entry: BlockId) -> Option<S>
+    where
+        E: AsRef<S::Expr>,
+    {
+        let mut shape = self.calculate(entry);
+
+        shape.map(|mut shape| {
+            // shape.fuse();
+            shape.render()
+        })
+    }
+}
+
 impl<L, C> Relooper<L, C> {
     pub fn new() -> Self {
         Relooper {
@@ -37,5 +51,3 @@ impl<L, C> Relooper<L, C> {
         process(subset, &mut env)
     }
 }
-
-impl<E> Relooper<E, E> {}

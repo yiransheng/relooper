@@ -101,11 +101,19 @@ impl<E> SimpleShape<E, E> {
                     flow: Flow::Direct,
                 },
                 FlowType::Continue => Exit {
-                    set_label: Some(b.target),
+                    set_label: if has_multiple_targets {
+                        Some(b.target)
+                    } else {
+                        None
+                    },
                     flow: Flow::Continue(Some(b.ancestor)),
                 },
                 FlowType::Break => Exit {
-                    set_label: Some(b.target),
+                    set_label: if has_multiple_targets {
+                        Some(b.target)
+                    } else {
+                        None
+                    },
                     flow: Flow::Break(Some(b.ancestor)),
                 },
             };
@@ -117,8 +125,8 @@ impl<E> SimpleShape<E, E> {
                 let exit = S::exit(exit);
                 output = output.join(exit);
             }
-        } else {
-            output = output.join(S::trap());
+            // } else {
+            // output = output.join(S::trap());
         }
 
         output
@@ -177,6 +185,7 @@ mod tests {
     use super::*;
     use std::io;
 
+    #[derive(Debug)]
     enum Ast {
         Panic,
         Node(String),
@@ -290,5 +299,24 @@ mod tests {
     }
 
     #[test]
-    fn test_it() {}
+    fn test_it() {
+        use crate::relooper::Relooper;
+        let mut relooper: Relooper<String, String> = Relooper::new();
+
+        let a = relooper.add_block("x = 0".to_string());
+        let b = relooper.add_block("// test".to_string());
+        let c = relooper.add_block("x = x + 1".to_string());
+        let d = relooper.add_block("ok".to_string());
+
+        relooper.add_branch(a, b, None);
+        relooper.add_branch(b, c, None);
+        relooper.add_branch(c, b, None);
+        relooper.add_branch(b, d, Some("x >= 10".to_string()));
+
+        let ast: Ast = relooper.render(a).unwrap();
+
+        println!("{:#?}", ast);
+
+        assert!(false);
+    }
 }
