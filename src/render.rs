@@ -475,6 +475,7 @@ mod tests {
         relooper.add_branch(a, b, Some("a -> b".to_string()));
         relooper.add_branch(a, c, None);
         relooper.add_branch(c, b, None);
+        relooper.add_branch(b, c, None);
         relooper.add_branch(b, d, Some("b -> d".to_string()));
 
         let ast: Ast = relooper.render(a).expect("Did not get shape");
