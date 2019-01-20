@@ -41,9 +41,8 @@ impl<L, C> Relooper<L, C> {
 
     fn calculate(self, entry: BlockId) -> Option<Shape<L, C>> {
         let mut env = GraphEnv::new(self.cfgraph);
-        env.remove_dead(entry);
+        let mut blocks = env.remove_dead(entry);
 
-        let mut blocks = env.all_block_set();
         let mut entries = env.empty_block_set();
         let mut next_entries = env.empty_block_set();
 

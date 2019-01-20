@@ -29,23 +29,16 @@ impl<L, C> GraphEnv<L, C> {
             cfgraph,
         }
     }
-    pub fn remove_dead(&mut self, entry: BlockId) {
+    pub fn remove_dead(&mut self, entry: BlockId) -> BlockSet {
         use petgraph::visit::Dfs;
-        let mut dead = self.all_block_set();
+        let mut alive = self.empty_block_set();
         let mut dfs = Dfs::new(&self.cfgraph, entry);
 
         while let Some(node_id) = dfs.next(&self.cfgraph) {
-            dead.remove(node_id);
+            alive.insert(node_id);
         }
 
-        for node_id in dead.iter() {
-            self.cfgraph.remove_node(node_id);
-        }
-    }
-    pub fn all_block_set(&self) -> BlockSet {
-        let mut set = self.empty_block_set();
-        set.extend(self.cfgraph.node_indices());
-        set
+        alive
     }
     pub fn empty_block_set(&self) -> BlockSet {
         BlockSet::new_empty(self.cfgraph.node_count())
@@ -62,10 +55,6 @@ impl<L, C> DerefMut for GraphEnv<L, C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.cfgraph
     }
-}
-
-fn empty_block_set<L, C>(g: &CFGraph<L, C>) -> BlockSet {
-    BlockSet::new_empty(g.node_count())
 }
 
 pub fn process<'a, L, C>(
@@ -336,7 +325,10 @@ impl<'a> CFGSubset<'a> {
                 None => entry,
             };
             src += entry;
-            sources.insert(block, src);
+            let prev = sources.insert(block, src);
+            if Some(src) == prev {
+                continue;
+            }
 
             for next_block in env.blocks_out(block, &*self.blocks) {
                 match sources.get(&next_block) {
@@ -525,52 +517,5 @@ impl<L, C> GraphEnv<L, C> {
     ) -> Option<&mut Branch<C>> {
         let edge = self.cfgraph.find_edge(a, b)?;
         self.cfgraph.edge_weight_mut(edge)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_it() {
-        let mut graph: CFGraph<&'static str, &'static str> = CFGraph::default();
-        let shape_id_gen = ShapeIdGen::default();
-
-        let a = graph.add_node(Block::Raw("a"));
-        let b = graph.add_node(Block::Raw("b"));
-        let c = graph.add_node(Block::Raw("c"));
-        // let d = graph.add_node(Block::Raw("d"));
-
-        graph.add_edge(a, b, Branch::Raw(Some("true")));
-        graph.add_edge(a, c, Branch::Raw(Some("false")));
-        graph.add_edge(b, c, Branch::Raw(Some("false")));
-        // graph.add_edge(c, b, Branch::Raw(Some("false")));
-        // graph.add_edge(c, d, Branch::Raw(Some("break")));
-
-        let mut entries = empty_block_set(&graph);
-        let mut next_entries = empty_block_set(&graph);
-        let mut blocks = empty_block_set(&graph);
-        for n in graph.node_indices() {
-            blocks.insert(n);
-        }
-
-        entries.insert(a);
-
-        let subset = CFGSubset {
-            blocks: &mut blocks,
-            entries: &mut entries,
-            next_entries: &mut next_entries,
-        };
-        let mut env = GraphEnv {
-            shape_id_gen,
-            cfgraph: graph,
-        };
-
-        let shape = process(subset, &mut env);
-
-        eprintln!("{:#?}", shape.unwrap());
-
-        assert!(true);
     }
 }
