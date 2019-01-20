@@ -1,3 +1,5 @@
+use std::convert::AsRef;
+
 use crate::shapes::*;
 use crate::types::{BlockId, FlowType, ShapeId};
 
@@ -41,7 +43,10 @@ pub trait StructedAst {
 }
 
 impl<E> Shape<E, E> {
-    pub fn render<S: StructedAst<Expr = E>>(&self) -> S {
+    pub fn render<S: StructedAst>(&self) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
         let head: S = match &self.kind {
             ShapeKind::Simple(s) => s.render(),
             ShapeKind::Multi(s) => s.render(self.id),
@@ -56,14 +61,19 @@ impl<E> Shape<E, E> {
     }
 }
 impl<E> SimpleShape<E, E> {
-    fn render<S: StructedAst<Expr = E>>(&self) -> S {
-        let mut output: S = S::expr(&self.internal);
+    fn render<S: StructedAst>(&self) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
+        let mut output: S = S::expr(self.internal.as_ref());
 
         for (is_first, b) in flag_first(self.conditional_branches()) {
-            let cond_type = if is_first {
-                CondType::If(b.data.as_ref().unwrap())
+            let cond = b.data.as_ref().unwrap();
+            let cond = cond.as_ref();
+            let cond_type: CondType<&S::Expr> = if is_first {
+                CondType::If(cond)
             } else {
-                CondType::ElseIf(b.data.as_ref().unwrap())
+                CondType::ElseIf(cond)
             };
             let exit = match b.flow_type {
                 FlowType::Direct => Exit {
@@ -100,7 +110,7 @@ impl<E> SimpleShape<E, E> {
                 },
             };
             if has_multiple_targets {
-                let cond_type: CondType<&E> = CondType::Else;
+                let cond_type: CondType<&S::Expr> = CondType::Else;
                 let exit = S::exit(exit).handled(cond_type);
                 output = output.join(exit);
             } else {
@@ -115,12 +125,15 @@ impl<E> SimpleShape<E, E> {
     }
 }
 impl<E> MultipleShape<E, E> {
-    fn render<S: StructedAst<Expr = E>>(&self, shape_id: ShapeId) -> S {
+    fn render<S: StructedAst>(&self, shape_id: ShapeId) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
         let mut body: Option<S> = None;
 
         for (is_first, (target, inner_shape)) in flag_first(self.handled.iter())
         {
-            let cond_type: CondType<&E> = if is_first {
+            let cond_type: CondType<&S::Expr> = if is_first {
                 CondType::IfLabel(*target)
             } else {
                 CondType::ElseIfLabel(*target)
@@ -138,13 +151,19 @@ impl<E> MultipleShape<E, E> {
     }
 }
 impl<E> LoopShape<E, E> {
-    fn render<S: StructedAst<Expr = E>>(&self, shape_id: Option<ShapeId>) -> S {
+    fn render<S: StructedAst>(&self, shape_id: Option<ShapeId>) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
         let inner: S = self.inner.render();
         inner.wrap_in_loop(shape_id)
     }
 }
 impl<E> FusedShape<E, E> {
-    fn render<S: StructedAst<Expr = E>>(&self) -> S {
+    fn render<S: StructedAst>(&self) -> S
+    where
+        E: AsRef<S::Expr>,
+    {
         unimplemented!()
     }
 }

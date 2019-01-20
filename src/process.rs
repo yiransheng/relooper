@@ -12,15 +12,44 @@ type SVec<T> = SmallVec<[T; 4]>;
 type IndepSetMap = HashMap<BlockId, BlockSet>;
 
 #[derive(Debug)]
-struct CFGSubset<'a> {
+pub struct CFGSubset<'a> {
     blocks: &'a mut BlockSet,
     entries: &'a mut BlockSet,
     next_entries: &'a mut BlockSet,
 }
 
-struct GraphEnv<L, C> {
+pub struct GraphEnv<L, C> {
     shape_id_gen: ShapeIdGen,
     cfgraph: CFGraph<L, C>,
+}
+impl<L, C> GraphEnv<L, C> {
+    pub fn new(cfgraph: CFGraph<L, C>) -> Self {
+        GraphEnv {
+            shape_id_gen: ShapeIdGen::default(),
+            cfgraph,
+        }
+    }
+    pub fn remove_dead(&mut self, entry: BlockId) {
+        use petgraph::visit::Dfs;
+        let mut dead = self.all_block_set();
+        let mut dfs = Dfs::new(&self.cfgraph, entry);
+
+        while let Some(node_id) = dfs.next(&self.cfgraph) {
+            dead.remove(node_id);
+        }
+
+        for node_id in dead.iter() {
+            self.cfgraph.remove_node(node_id);
+        }
+    }
+    pub fn all_block_set(&self) -> BlockSet {
+        let mut set = self.empty_block_set();
+        set.extend(self.cfgraph.node_indices());
+        set
+    }
+    pub fn empty_block_set(&self) -> BlockSet {
+        BlockSet::new_empty(self.cfgraph.node_count())
+    }
 }
 impl<L, C> Deref for GraphEnv<L, C> {
     type Target = CFGraph<L, C>;
@@ -39,7 +68,7 @@ fn empty_block_set<L, C>(g: &CFGraph<L, C>) -> BlockSet {
     BlockSet::new_empty(g.node_count())
 }
 
-fn process<'a, L, C>(
+pub fn process<'a, L, C>(
     mut subset: CFGSubset<'a>,
     env: &mut GraphEnv<L, C>,
 ) -> Option<Shape<L, C>> {
@@ -113,7 +142,7 @@ fn process<'a, L, C>(
 }
 
 impl<'a> CFGSubset<'a> {
-    fn new(
+    pub fn new(
         next_entries: &'a mut BlockSet,
         prev_entries: &'a mut BlockSet,
         blocks: &'a mut BlockSet,
@@ -503,10 +532,6 @@ impl<L, C> GraphEnv<L, C> {
     ) -> Option<&mut Branch<C>> {
         let edge = self.cfgraph.find_edge(a, b)?;
         self.cfgraph.edge_weight_mut(edge)
-    }
-
-    fn empty_block_set(&self) -> BlockSet {
-        BlockSet::new_empty(self.cfgraph.node_count())
     }
 }
 
