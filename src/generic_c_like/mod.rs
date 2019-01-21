@@ -27,6 +27,7 @@ pub struct AstConfig<'a> {
     pub labed_block_prefix: &'a str,
     pub labed_block_postfix: &'a str,
     pub control_variable: &'a str,
+    pub panic: &'a str,
 }
 
 impl<'a> Default for AstConfig<'a> {
@@ -38,6 +39,7 @@ impl<'a> Default for AstConfig<'a> {
             labed_block_prefix: "do {",
             labed_block_postfix: "} while(false)",
             control_variable: "__label__",
+            panic: "throw Error('unreachable');",
         }
     }
 }
@@ -57,6 +59,7 @@ impl StaticAstConfig for RustConfig {
             labed_block_prefix: "loop {{",
             labed_block_postfix: "} break; }",
             control_variable: "__label__",
+            panic: "unreachable!()",
         }
     }
 }

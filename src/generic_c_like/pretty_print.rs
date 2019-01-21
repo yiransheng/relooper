@@ -55,7 +55,7 @@ impl AstKind {
     ) -> Result<(), io::Error> {
         match self {
             AstKind::Node(s) => f.write_node(s, writer),
-            AstKind::Panic => f.write_node("unreachable!()", writer),
+            AstKind::Panic => f.write_node(f.config.panic, writer),
             AstKind::If(s, inner) => {
                 f.write_if(s, writer)?;
                 inner.pretty_fmt(f, writer)?;
