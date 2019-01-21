@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 
 use crate::{BlockId, CondType, Exit, Flow, Relooper, ShapeId, StructedAst};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct CLikeAst<C = DefaultConfig> {
     kind: AstKind,
     _config: PhantomData<C>,
@@ -14,25 +14,6 @@ pub struct CLikeAst<C = DefaultConfig> {
 pub struct DefaultConfig;
 
 pub struct RustConfig;
-
-impl StaticAstConfig for DefaultConfig {
-    fn config() -> AstConfig<'static> {
-        AstConfig::default()
-    }
-}
-
-impl StaticAstConfig for RustConfig {
-    fn config() -> AstConfig<'static> {
-        AstConfig {
-            label_prefix: "'a",
-            loop_prefix: "loop {",
-            loop_postfix: "}",
-            labed_block_prefix: "loop {{",
-            labed_block_postfix: "} break; }",
-            control_variable: "__label__",
-        }
-    }
-}
 
 pub trait StaticAstConfig {
     fn config() -> AstConfig<'static>;
@@ -56,6 +37,25 @@ impl<'a> Default for AstConfig<'a> {
             loop_postfix: "}",
             labed_block_prefix: "do {",
             labed_block_postfix: "} while(false)",
+            control_variable: "__label__",
+        }
+    }
+}
+
+impl StaticAstConfig for DefaultConfig {
+    fn config() -> AstConfig<'static> {
+        AstConfig::default()
+    }
+}
+
+impl StaticAstConfig for RustConfig {
+    fn config() -> AstConfig<'static> {
+        AstConfig {
+            label_prefix: "'a",
+            loop_prefix: "loop {",
+            loop_postfix: "}",
+            labed_block_prefix: "loop {{",
+            labed_block_postfix: "} break; }",
             control_variable: "__label__",
         }
     }
