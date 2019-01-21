@@ -8,8 +8,16 @@ impl<C: StaticAstConfig> CLikeAst<C> {
         &self,
         writer: &mut W,
     ) -> Result<(), io::Error> {
+        self.to_writer_pretty_indented(0, writer)
+    }
+    pub fn to_writer_pretty_indented<W: io::Write>(
+        &self,
+        level: usize,
+        writer: &mut W,
+    ) -> Result<(), io::Error> {
         let config = C::config();
-        let mut pretty_formatter = PrettyFormatter::with_indent("  ", config);
+        let mut pretty_formatter =
+            PrettyFormatter::with_indent(level, "  ", config);
         self.kind.pretty_fmt(&mut pretty_formatter, writer)
     }
 }
@@ -98,9 +106,13 @@ struct PrettyFormatter<'a> {
 }
 
 impl<'a> PrettyFormatter<'a> {
-    fn with_indent(indent: &'a str, config: AstConfig<'a>) -> Self {
+    fn with_indent(
+        level: usize,
+        indent: &'a str,
+        config: AstConfig<'a>,
+    ) -> Self {
         PrettyFormatter {
-            current_indent: 0,
+            current_indent: level,
             indent: indent,
             config,
         }

@@ -95,6 +95,10 @@ impl<L, C> Shape<L, C> {
             }
             ShapeKind::Fused(_) => {}
         }
+
+        if let Some(next) = self.next.as_mut() {
+            next.fuse();
+        }
     }
 
     fn fuse_simple(&mut self) {

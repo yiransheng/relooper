@@ -17,10 +17,14 @@ impl<L, C> Relooper<L, C> {
     }
     pub fn render<S: StructedAst>(self, entry: BlockId) -> Option<S>
     where
+        // L: AsRef<S::Stmt> + ::std::fmt::Debug,
+        // C: AsRef<S::Expr> + ::std::fmt::Debug,
         L: AsRef<S::Stmt>,
-        C: AsRef<S::Expr>, // E: ::std::fmt::Debug
+        C: AsRef<S::Expr>,
     {
         let shape = self.calculate(entry);
+
+        // eprintln!("{:#?}", shape);
 
         shape.map(|mut shape| {
             shape.fuse();
