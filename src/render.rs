@@ -30,6 +30,8 @@ pub trait StructedAst {
 
     fn trap() -> Self;
 
+    fn nop() -> Self;
+
     fn statement(stmt: &Self::Stmt) -> Self;
 
     fn exit(b: Exit) -> Self;
@@ -68,7 +70,7 @@ impl<L, C> SimpleShape<L, C> {
         branch: &ProcessedBranch<C>,
         fused_multi: Option<&MultipleShape<L, C>>,
         root: &Shape<L, C>,
-    ) -> Option<S>
+    ) -> S
     where
         C: AsRef<S::Expr>,
         L: AsRef<S::Stmt>,
@@ -78,12 +80,11 @@ impl<L, C> SimpleShape<L, C> {
         {
             assert!(branch.flow_type == FlowType::Direct);
             assert!(handled_shape.entry_type != EntryType::Checked);
-            Some(handled_shape.shape.render(root))
+            handled_shape.shape.render(root)
         } else {
-            // let target_entry_type = find_branch_target_entry_type(branch, root);
-            // let set_label = Some(branch.target)
-            // .filter(|_| target_entry_type == EntryType::Checked);
-            let set_label = Some(branch.target);
+            let target_entry_type = find_branch_target_entry_type(branch, root);
+            let set_label = Some(branch.target)
+                .filter(|_| target_entry_type == EntryType::Checked);
 
             let exit = match branch.flow_type {
                 FlowType::Direct => {
@@ -93,7 +94,8 @@ impl<L, C> SimpleShape<L, C> {
                             flow: Flow::Direct,
                         }
                     } else {
-                        return None;
+                        //// Early Return
+                        return S::nop();
                     }
                 }
                 FlowType::Continue => Exit {
@@ -105,7 +107,8 @@ impl<L, C> SimpleShape<L, C> {
                     flow: Flow::Break(Some(branch.ancestor)),
                 },
             };
-            Some(S::exit(exit))
+
+            S::exit(exit)
         }
     }
     fn render<S: StructedAst>(
@@ -119,9 +122,9 @@ impl<L, C> SimpleShape<L, C> {
     {
         let mut output: S = S::statement(self.internal.as_ref());
 
-        let exits = self.conditional_branches().filter_map(|b| {
-            let exit: Option<S> = self.render_branch(b, fused_multi, root);
-            exit.map(|e| (b, e))
+        let exits = self.conditional_branches().map(|b| {
+            let exit: S = self.render_branch(b, fused_multi, root);
+            (b, exit)
         });
 
         let mut has_conditional_branches = false;
@@ -142,16 +145,14 @@ impl<L, C> SimpleShape<L, C> {
         }
 
         if let Some(b) = self.default_branch() {
-            let exit: Option<S> = self.render_branch(b, fused_multi, root);
+            let exit: S = self.render_branch(b, fused_multi, root);
 
-            if let Some(exit) = exit {
-                if has_conditional_branches {
-                    let cond_type: CondType<&S::Expr> = CondType::Else;
-                    let exit = exit.handled(cond_type);
-                    output = output.join(exit);
-                } else {
-                    output = output.join(exit);
-                }
+            if has_conditional_branches {
+                let cond_type: CondType<&S::Expr> = CondType::Else;
+                let exit = exit.handled(cond_type);
+                output = output.join(exit);
+            } else {
+                output = output.join(exit);
             }
         } else if has_conditional_branches {
             output = output.join(S::trap());

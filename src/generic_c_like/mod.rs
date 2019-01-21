@@ -93,6 +93,9 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
     fn trap() -> Self {
         AstKind::Panic.into()
     }
+    fn nop() -> Self {
+        AstKind::Node(String::new()).into()
+    }
 
     fn statement(expr: &Self::Stmt) -> Self {
         AstKind::Node(expr.to_string()).into()
