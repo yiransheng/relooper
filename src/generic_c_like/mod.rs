@@ -1,9 +1,8 @@
 mod pretty_print;
 
-use std::fmt;
 use std::marker::PhantomData;
 
-use crate::{BlockId, CondType, Exit, Flow, Relooper, ShapeId, StructedAst};
+use crate::{CondType, Exit, Flow, ShapeId, StructedAst};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CLikeAst<C = DefaultConfig> {
