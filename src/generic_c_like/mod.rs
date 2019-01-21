@@ -13,9 +13,24 @@ pub struct CLikeAst<C = DefaultConfig> {
 
 pub struct DefaultConfig;
 
+pub struct RustConfig;
+
 impl StaticAstConfig for DefaultConfig {
     fn config() -> AstConfig<'static> {
         AstConfig::default()
+    }
+}
+
+impl StaticAstConfig for RustConfig {
+    fn config() -> AstConfig<'static> {
+        AstConfig {
+            label_prefix: "'a",
+            loop_prefix: "loop {",
+            loop_postfix: "}",
+            labed_block_prefix: "loop {{",
+            labed_block_postfix: "} break; }",
+            control_variable: "__label__",
+        }
     }
 }
 
