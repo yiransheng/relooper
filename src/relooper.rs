@@ -1,4 +1,4 @@
-use petgraph::Direction;
+// use petgraph::Direction;
 
 use crate::process::{process, CFGSubset, GraphEnv};
 use crate::render::StructedAst;
@@ -20,11 +20,6 @@ impl<E> Relooper<E, E> {
             shape.fuse();
             shape.render(&shape)
         })
-    }
-}
-impl<L, C> Default for Relooper<L, C> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -63,10 +58,17 @@ impl<L, C> Relooper<L, C> {
 
         entries.insert(entry);
 
+        // return None?
         assert!(!blocks.is_empty(), "Nothing is reachable");
 
         let subset =
             CFGSubset::new(&mut entries, &mut next_entries, &mut blocks);
         process(subset, &mut env)
+    }
+}
+
+impl<L, C> Default for Relooper<L, C> {
+    fn default() -> Self {
+        Self::new()
     }
 }
