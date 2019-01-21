@@ -30,6 +30,7 @@ mod test_basics {
         let b = relooper.add_block("__block__b".to_string());
         let c = relooper.add_block("__block__c".to_string());
 
+        // a +---> b +--> c
         // FIXME
         relooper.add_branch(a, b, Some("a -> b".to_string()));
         relooper.add_branch(b, c, Some("b -> c".to_string()));
@@ -55,6 +56,14 @@ mod test_basics {
         let c = relooper.add_block("i = i + 1".to_string());
         let d = relooper.add_block("__block__d".to_string());
 
+        //       +--------+
+        //       |        |
+        //       v        |
+        // a +-> b +----->c
+        //       +
+        //       |
+        //       v
+        //       d
         relooper.add_branch(a, b, None);
         relooper.add_branch(b, c, None);
         relooper.add_branch(b, d, Some("i > 10".to_string()));
@@ -120,6 +129,10 @@ mod test_basics {
         let b = relooper.add_block("__block__b");
         let c = relooper.add_block("__block__c");
 
+        // a+---------->c
+        // |            ^
+        // |            |
+        // +----->b+----+
         relooper.add_branch(a, b, Some("true"));
         relooper.add_branch(a, c, None);
         relooper.add_branch(b, c, None);
