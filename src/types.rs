@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
-use std::ops::Index;
 
 use fixedbitset::FixedBitSet;
-use petgraph::graph::{DiGraph, EdgeIndex, IndexType, NodeIndex};
+use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
 pub type DefaultIndex = u32;
 
@@ -36,8 +35,6 @@ impl<Ix: IndexType> ShapeId<Ix> {
 pub type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
 
 pub type BlockId = NodeIndex<DefaultIndex>;
-
-pub type BranchId = EdgeIndex<DefaultIndex>;
 
 #[derive(Debug, Clone)]
 pub struct BlockSet<Ix = BlockId> {

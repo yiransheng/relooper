@@ -496,6 +496,7 @@ impl<L, C> GraphEnv<L, C> {
         self.cfgraph.edge_weight(edge)
     }
 
+    #[allow(dead_code)]
     fn find_raw_branch_mut(
         &mut self,
         a: BlockId,

@@ -14,7 +14,7 @@ pub mod generic_c_like;
 ///
 /// These tests operate on generated string representation of pseduo code.
 /// They will need to be updated if additional optimization has been added
-/// to Relooper.
+/// to Relooper, or CLikeAst struct default behavior changes.
 #[cfg(test)]
 mod test_basics {
     use std::iter::Peekable;
@@ -31,7 +31,7 @@ mod test_basics {
         let c = relooper.add_block("__block__c".to_string());
 
         // a +---> b +--> c
-        // FIXME
+        // FIXME: default branching valication
         relooper.add_branch(a, b, Some("a -> b".to_string()));
         relooper.add_branch(b, c, Some("b -> c".to_string()));
 
@@ -165,6 +165,7 @@ mod test_basics {
         chars: Peekable<I>,
     }
     impl<I: Iterator<Item = char>> InsignificantWhites<I> {
+        #[allow(dead_code)]
         fn new(chars: I) -> Self {
             InsignificantWhites {
                 chars: chars.peekable(),
