@@ -5,7 +5,7 @@ use crate::render::StructedAst;
 use crate::shapes::*;
 use crate::types::*;
 
-pub struct Relooper<L, C> {
+pub struct Relooper<L, C = L> {
     cfgraph: CFGraph<L, C>,
 }
 

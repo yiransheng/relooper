@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_it() {
         use crate::relooper::Relooper;
-        let mut relooper: Relooper<String, String> = Relooper::new();
+        let mut relooper: Relooper<String> = Relooper::new();
 
         let a = relooper.add_block("x = 0".to_string());
         let b = relooper.add_block("// block b".to_string());
