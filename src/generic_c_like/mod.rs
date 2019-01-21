@@ -172,27 +172,38 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
         AstKind::LabeledBlock(id, Box::new(self.kind)).into()
     }
 
-    fn handled(self, cond_type: CondType<&Self::Expr>) -> Self {
+    fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
+        conditionals: I,
+        default_branch: Self,
+    ) -> Self
+    where
+        Self::Expr: 'a,
+    {
         let c = C::config();
+        let mut branches: Vec<_> = flag_first(conditionals)
+            .map(|(is_first, (cond_type, code))| {
+                let cond = match cond_type {
+                    CondType::Case(expr) => expr.to_string(),
+                    CondType::CaseLabel(block_id) => format!(
+                        "{} === {}",
+                        c.control_variable,
+                        block_id.index()
+                    ),
+                };
+                if is_first {
+                    AstKind::If(cond, Box::new(code.kind))
+                } else {
+                    AstKind::ElseIf(cond, Box::new(code.kind))
+                }
+            })
+            .collect();
 
-        match cond_type {
-            CondType::If(c) => {
-                AstKind::If(c.to_string(), Box::new(self.kind)).into()
-            }
-            CondType::ElseIf(c) => {
-                AstKind::ElseIf(c.to_string(), Box::new(self.kind)).into()
-            }
-            CondType::IfLabel(bid) => AstKind::If(
-                format!("{} == {}", c.control_variable, bid.index()),
-                Box::new(self.kind),
-            )
-            .into(),
-            CondType::ElseIfLabel(bid) => AstKind::ElseIf(
-                format!("{} == {}", c.control_variable, bid.index()),
-                Box::new(self.kind),
-            )
-            .into(),
-            CondType::Else => AstKind::Else(Box::new(self.kind)).into(),
-        }
+        branches.push(AstKind::Else(Box::new(default_branch.kind)).into());
+
+        AstKind::Seq(branches).into()
     }
+}
+
+fn flag_first<I: Iterator>(iter: I) -> impl Iterator<Item = (bool, I::Item)> {
+    iter.enumerate().map(|(i, x)| (i == 0, x))
 }

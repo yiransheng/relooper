@@ -5,11 +5,8 @@ use crate::types::{BlockId, EntryType, FlowType, ProcessedBranch, ShapeId};
 
 #[derive(Debug)]
 pub enum CondType<C> {
-    If(C),
-    ElseIf(C),
-    IfLabel(BlockId),
-    ElseIfLabel(BlockId),
-    Else,
+    Case(C),
+    CaseLabel(BlockId),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -42,7 +39,13 @@ pub trait StructedAst {
 
     fn wrap_in_block(self, shape_id: ShapeId) -> Self;
 
-    fn handled(self, cond_type: CondType<&Self::Expr>) -> Self;
+    fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
+        conditionals: I,
+        default_branch: Self,
+    ) -> Self
+    where
+        Self: Sized,
+        Self::Expr: 'a;
 }
 
 impl<L, C> Shape<L, C> {
@@ -122,43 +125,32 @@ impl<L, C> SimpleShape<L, C> {
     {
         let mut output: S = S::statement(self.internal.as_ref());
 
-        let exits = self.conditional_branches().map(|b| {
+        let has_conditional_branches = self.conditional_branches().count() > 0;
+
+        let conditional_exits = self.conditional_branches().map(|b| {
             let exit: S = self.render_branch(b, fused_multi, root);
-            (b, exit)
-        });
-
-        let mut has_conditional_branches = false;
-
-        for (is_first, (b, exit)) in flag_first(exits) {
-            has_conditional_branches = true;
-
             let cond = b.data.as_ref().unwrap();
             let cond = cond.as_ref();
-            let cond_type: CondType<&S::Expr> = if is_first {
-                CondType::If(cond)
-            } else {
-                CondType::ElseIf(cond)
-            };
-            let exit = exit.handled(cond_type);
+            let cond_type: CondType<&S::Expr> = CondType::Case(cond);
 
-            output = output.join(exit);
-        }
+            (cond_type, exit)
+        });
 
-        if let Some(b) = self.default_branch() {
+        let default_exit = self.default_branch().map(|b| {
             let exit: S = self.render_branch(b, fused_multi, root);
+            exit
+        });
 
-            if has_conditional_branches {
-                let cond_type: CondType<&S::Expr> = CondType::Else;
-                let exit = exit.handled(cond_type);
-                output = output.join(exit);
-            } else {
-                output = output.join(exit);
-            }
-        } else if has_conditional_branches {
-            output = output.join(S::trap());
-        }
+        let exits = if has_conditional_branches {
+            S::switches(
+                conditional_exits,
+                default_exit.unwrap_or_else(|| S::trap()),
+            )
+        } else {
+            default_exit.unwrap_or_else(|| S::nop())
+        };
 
-        output
+        output.join(exits)
     }
 }
 impl<L, C> MultipleShape<L, C> {
@@ -167,28 +159,19 @@ impl<L, C> MultipleShape<L, C> {
         L: AsRef<S::Stmt>,
         C: AsRef<S::Expr>,
     {
-        let mut body: Option<S> = None;
-
-        for (is_first, (target, inner_shape)) in flag_first(self.handled.iter())
-        {
-            let cond_type: CondType<&S::Expr> = if is_first {
-                CondType::IfLabel(*target)
-            } else {
-                CondType::ElseIfLabel(*target)
-            };
+        let conditionals = self.handled.iter().map(|(target, inner_shape)| {
+            let cond_type: CondType<&S::Expr> = CondType::CaseLabel(*target);
             let inner: S = inner_shape.shape.render(root);
-            let inner: S = inner.handled(cond_type);
-            if body.is_none() {
-                body = Some(inner);
-            } else {
-                body = body.map(|body| body.join(inner));
-            }
-        }
+
+            (cond_type, inner)
+        });
+
+        let body = S::switches(conditionals, S::nop());
 
         if self.break_count > 0 {
-            body.unwrap().wrap_in_block(shape_id)
+            body.wrap_in_block(shape_id)
         } else {
-            body.unwrap()
+            body
         }
     }
 }
@@ -215,8 +198,4 @@ impl<L, C> FusedShape<L, C> {
             inner
         }
     }
-}
-
-fn flag_first<I: Iterator>(iter: I) -> impl Iterator<Item = (bool, I::Item)> {
-    iter.enumerate().map(|(i, x)| (i == 0, x))
 }
