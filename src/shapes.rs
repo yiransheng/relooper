@@ -118,12 +118,13 @@ impl<L, C> Shape<L, C> {
 
         take_mut::take(&mut self.kind, |kind| {
             if let ShapeKind::Simple(mut simple) = kind {
-                if let ShapeKind::Multi(multi) = next.kind {
+                if let ShapeKind::Multi(mut multi) = next.kind {
                     for b in simple.branches_out.values_mut() {
                         b.ancestor = new_id;
                         // not handled
                         if !multi.handled.contains_key(&b.target) {
                             b.flow_type = FlowType::Break;
+                            multi.break_count += 1;
                         }
                     }
                     return ShapeKind::Fused(FusedShape { simple, multi });
