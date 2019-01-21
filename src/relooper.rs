@@ -9,10 +9,16 @@ pub struct Relooper<L, C = L> {
     cfgraph: CFGraph<L, C>,
 }
 
-impl<E> Relooper<E, E> {
+impl<L, C> Relooper<L, C> {
+    pub fn new() -> Self {
+        Relooper {
+            cfgraph: CFGraph::default(),
+        }
+    }
     pub fn render<S: StructedAst>(self, entry: BlockId) -> Option<S>
     where
-        E: AsRef<S::Expr>, // E: ::std::fmt::Debug
+        L: AsRef<S::Stmt>,
+        C: AsRef<S::Expr>, // E: ::std::fmt::Debug
     {
         let shape = self.calculate(entry);
 
@@ -20,14 +26,6 @@ impl<E> Relooper<E, E> {
             shape.fuse();
             shape.render(&shape)
         })
-    }
-}
-
-impl<L, C> Relooper<L, C> {
-    pub fn new() -> Self {
-        Relooper {
-            cfgraph: CFGraph::default(),
-        }
     }
     pub fn add_block(&mut self, block: L) -> BlockId {
         self.cfgraph.add_node(Block::Raw(block))

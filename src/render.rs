@@ -26,10 +26,11 @@ pub enum Flow {
 
 pub trait StructedAst {
     type Expr: ?Sized;
+    type Stmt: ?Sized;
 
     fn trap() -> Self;
 
-    fn expr(expr: &Self::Expr) -> Self;
+    fn statement(stmt: &Self::Stmt) -> Self;
 
     fn exit(b: Exit) -> Self;
 
@@ -42,10 +43,11 @@ pub trait StructedAst {
     fn handled(self, cond_type: CondType<&Self::Expr>) -> Self;
 }
 
-impl<E> Shape<E, E> {
+impl<L, C> Shape<L, C> {
     pub fn render<S: StructedAst>(&self, root: &Self) -> S
     where
-        E: AsRef<S::Expr>,
+        C: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
     {
         let head: S = match &self.kind {
             ShapeKind::Simple(s) => s.render(None, root),
@@ -60,15 +62,16 @@ impl<E> Shape<E, E> {
         }
     }
 }
-impl<E> SimpleShape<E, E> {
+impl<L, C> SimpleShape<L, C> {
     fn render_branch<S: StructedAst>(
         &self,
-        branch: &ProcessedBranch<E>,
-        fused_multi: Option<&MultipleShape<E, E>>,
-        root: &Shape<E, E>,
+        branch: &ProcessedBranch<C>,
+        fused_multi: Option<&MultipleShape<L, C>>,
+        root: &Shape<L, C>,
     ) -> Option<S>
     where
-        E: AsRef<S::Expr>,
+        C: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
     {
         if let Some(handled_shape) =
             fused_multi.and_then(|s| s.handled.get(&branch.target))
@@ -106,13 +109,14 @@ impl<E> SimpleShape<E, E> {
     }
     fn render<S: StructedAst>(
         &self,
-        fused_multi: Option<&MultipleShape<E, E>>,
-        root: &Shape<E, E>,
+        fused_multi: Option<&MultipleShape<L, C>>,
+        root: &Shape<L, C>,
     ) -> S
     where
-        E: AsRef<S::Expr>,
+        C: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
     {
-        let mut output: S = S::expr(self.internal.as_ref());
+        let mut output: S = S::statement(self.internal.as_ref());
 
         let exits = self.conditional_branches().filter_map(|b| {
             let exit: Option<S> = self.render_branch(b, fused_multi, root);
@@ -155,10 +159,11 @@ impl<E> SimpleShape<E, E> {
         output
     }
 }
-impl<E> MultipleShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
+impl<L, C> MultipleShape<L, C> {
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
     where
-        E: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
+        C: AsRef<S::Expr>,
     {
         let mut body: Option<S> = None;
 
@@ -185,19 +190,21 @@ impl<E> MultipleShape<E, E> {
         }
     }
 }
-impl<E> LoopShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
+impl<L, C> LoopShape<L, C> {
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
     where
-        E: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
+        C: AsRef<S::Expr>,
     {
         let inner: S = self.inner.render(root);
         inner.wrap_in_loop(shape_id)
     }
 }
-impl<E> FusedShape<E, E> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<E, E>) -> S
+impl<L, C> FusedShape<L, C> {
+    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
     where
-        E: AsRef<S::Expr>,
+        L: AsRef<S::Stmt>,
+        C: AsRef<S::Expr>,
     {
         let inner: S = self.simple.render(Some(&self.multi), root);
         if self.multi.break_count > 0 {

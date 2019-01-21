@@ -88,12 +88,13 @@ pub enum AstKind {
 
 impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
     type Expr = str;
+    type Stmt = str;
 
     fn trap() -> Self {
         AstKind::Panic.into()
     }
 
-    fn expr(expr: &Self::Expr) -> Self {
+    fn statement(expr: &Self::Stmt) -> Self {
         AstKind::Node(expr.to_string()).into()
     }
 
