@@ -80,9 +80,10 @@ impl<L, C> SimpleShape<L, C> {
             assert!(handled_shape.entry_type != EntryType::Checked);
             Some(handled_shape.shape.render(root))
         } else {
-            let target_entry_type = find_branch_target_entry_type(branch, root);
-            let set_label = Some(branch.target)
-                .filter(|_| target_entry_type == EntryType::Checked);
+            // let target_entry_type = find_branch_target_entry_type(branch, root);
+            // let set_label = Some(branch.target)
+            // .filter(|_| target_entry_type == EntryType::Checked);
+            let set_label = Some(branch.target);
 
             let exit = match branch.flow_type {
                 FlowType::Direct => {

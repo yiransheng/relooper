@@ -397,8 +397,6 @@ impl<'a> CFGSubset<'a> {
             }
         }
 
-        let mut shallow_break_count: usize = 0;
-
         for (entry, targets) in indep_groups.iter_mut() {
             if targets.is_empty() {
                 next_entries.insert(*entry);
@@ -418,15 +416,6 @@ impl<'a> CFGSubset<'a> {
                 process(subset, env)?
             };
 
-            if let ShapeKind::Simple(ref simple) = inner_shape.kind {
-                if simple.branches_out.len() == 1 {
-                    let branch = simple.branches_out.values().next().unwrap();
-
-                    assert!(branch.ancestor == shape_id);
-                    shallow_break_count += 1;
-                }
-            }
-
             handled.insert(
                 *entry,
                 HandledShape {
@@ -440,14 +429,17 @@ impl<'a> CFGSubset<'a> {
             }
         }
 
-        if shallow_break_count == break_count {
-            break_count = 0;
-
-            for shape in handled.values_mut() {
-                if let ShapeKind::Simple(ref mut simple) = shape.shape.kind {
-                    let branch =
-                        simple.branches_out.values_mut().next().unwrap();
-                    branch.flow_type = FlowType::Direct;
+        for shape in handled.values_mut() {
+            if let ShapeKind::Simple(ref mut simple) = shape.shape.kind {
+                if simple.branches_out.len() != 1 {
+                    continue;
+                }
+                for branch in simple.branches_out.values_mut() {
+                    if branch.ancestor == shape_id {
+                        assert!(branch.flow_type == FlowType::Break);
+                        break_count -= 1;
+                        branch.flow_type = FlowType::Direct;
+                    }
                 }
             }
         }
