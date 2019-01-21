@@ -174,7 +174,7 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
 
     fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
         conditionals: I,
-        default_branch: Self,
+        default_branch: Option<Self>,
     ) -> Self
     where
         Self::Expr: 'a,
@@ -198,7 +198,9 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
             })
             .collect();
 
-        branches.push(AstKind::Else(Box::new(default_branch.kind)).into());
+        if let Some(default_branch) = default_branch {
+            branches.push(AstKind::Else(Box::new(default_branch.kind)).into());
+        }
 
         AstKind::Seq(branches).into()
     }

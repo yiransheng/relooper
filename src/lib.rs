@@ -31,20 +31,22 @@ mod test_basics {
         let c = relooper.add_block("__block__c".to_string());
 
         // a +---> b +--> c
-        // FIXME: default branching valication
-        relooper.add_branch(a, b, Some("a -> b".to_string()));
-        relooper.add_branch(b, c, Some("b -> c".to_string()));
+        relooper.add_branch(a, b, None);
+        relooper.add_branch(b, c, None);
 
         let ast: CLikeAst = relooper.render(a).expect("Did not get shape");
 
-        let expected_ast = AstKind::Seq(vec![
-            AstKind::Node("__block__a".to_string()),
-            AstKind::Node("__block__b".to_string()),
-            AstKind::Node("__block__c".to_string()),
-        ])
-        .into();
+        let pseudo_code = ast.to_string();
+        let expected = "
+            __block__a
+            __block__b
+            __block__c
+        ";
 
-        assert_eq!(ast, expected_ast);
+        assert!(
+            code_equal(pseudo_code.trim().chars(), expected.trim().chars()),
+            pseudo_code
+        );
     }
 
     #[test]

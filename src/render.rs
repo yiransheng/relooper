@@ -41,7 +41,7 @@ pub trait StructedAst {
 
     fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
         conditionals: I,
-        default_branch: Self,
+        default_branch: Option<Self>,
     ) -> Self
     where
         Self: Sized,
@@ -123,7 +123,7 @@ impl<L, C> SimpleShape<L, C> {
         C: AsRef<S::Expr>,
         L: AsRef<S::Stmt>,
     {
-        let mut output: S = S::statement(self.internal.as_ref());
+        let output: S = S::statement(self.internal.as_ref());
 
         let has_conditional_branches = self.conditional_branches().count() > 0;
 
@@ -141,16 +141,17 @@ impl<L, C> SimpleShape<L, C> {
             exit
         });
 
-        let exits = if has_conditional_branches {
-            S::switches(
+        if has_conditional_branches {
+            let exits = S::switches(
                 conditional_exits,
-                default_exit.unwrap_or_else(|| S::trap()),
-            )
+                default_exit.or_else(|| Some(S::trap())),
+            );
+            output.join(exits)
+        } else if let Some(exit) = default_exit {
+            output.join(exit)
         } else {
-            default_exit.unwrap_or_else(|| S::nop())
-        };
-
-        output.join(exits)
+            output
+        }
     }
 }
 impl<L, C> MultipleShape<L, C> {
@@ -166,7 +167,7 @@ impl<L, C> MultipleShape<L, C> {
             (cond_type, inner)
         });
 
-        let body = S::switches(conditionals, S::nop());
+        let body = S::switches(conditionals, None);
 
         if self.break_count > 0 {
             body.wrap_in_block(shape_id)

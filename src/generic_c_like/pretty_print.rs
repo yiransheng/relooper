@@ -56,6 +56,13 @@ impl<'a, W: fmt::Write> io::Write for FmtWriter<'a, W> {
 }
 
 impl AstKind {
+    fn is_empty_node(&self) -> bool {
+        if let AstKind::Node(ref s) = self {
+            s.is_empty()
+        } else {
+            false
+        }
+    }
     fn pretty_fmt<W: io::Write>(
         &self,
         f: &mut PrettyFormatter,
@@ -75,9 +82,13 @@ impl AstKind {
                 f.write_block_postfix(writer)
             }
             AstKind::Else(inner) => {
-                f.write_else(writer)?;
-                inner.pretty_fmt(f, writer)?;
-                f.write_block_postfix(writer)
+                if !inner.is_empty_node() {
+                    f.write_else(writer)?;
+                    inner.pretty_fmt(f, writer)?;
+                    f.write_block_postfix(writer)
+                } else {
+                    Ok(())
+                }
             }
             AstKind::Loop(id, inner) => {
                 f.write_loop_prefix(*id, writer)?;

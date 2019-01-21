@@ -429,35 +429,6 @@ impl<'a> CFGSubset<'a> {
             }
         }
 
-        // we can skip label for this multi block if all breaks are shallow
-        // and unconditional
-        let needs_label = handled.values().any(|shape| {
-            if let ShapeKind::Simple(simple) = &shape.shape.kind {
-                // only one branch out
-                if simple.branches_out.len() == 1 {
-                    let b = simple.branches_out.values().next().unwrap();
-                    // is conditional branch or not a break on this multi shape
-                    return b.data.is_some() || b.ancestor != shape_id;
-                }
-            }
-
-            true
-        });
-
-        if !needs_label {
-            for shape in handled.values_mut() {
-                if let ShapeKind::Simple(ref mut simple) = shape.shape.kind {
-                    for branch in simple.branches_out.values_mut() {
-                        if branch.ancestor == shape_id {
-                            assert!(branch.flow_type == FlowType::Break);
-                            break_count -= 1;
-                            branch.flow_type = FlowType::Direct;
-                        }
-                    }
-                }
-            }
-        }
-
         let shape = Shape {
             id: shape_id,
             kind: ShapeKind::Multi(MultipleShape {
