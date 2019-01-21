@@ -211,37 +211,3 @@ impl<E> FusedShape<E, E> {
 fn flag_first<I: Iterator>(iter: I) -> impl Iterator<Item = (bool, I::Item)> {
     iter.enumerate().map(|(i, x)| (i == 0, x))
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::generic_c_like::CLikeAst;
-    use std::io;
-
-    #[test]
-    fn test_it() {
-        use crate::relooper::Relooper;
-        let mut relooper: Relooper<String> = Relooper::new();
-
-        let a = relooper.add_block("x = 0".to_string());
-        let b = relooper.add_block("// block b".to_string());
-        let c = relooper.add_block("// block c".to_string());
-        let d = relooper.add_block("// block d".to_string());
-
-        relooper.add_branch(a, b, Some("a -> b".to_string()));
-        relooper.add_branch(a, c, None);
-        relooper.add_branch(c, b, None);
-        relooper.add_branch(b, c, None);
-        relooper.add_branch(b, d, Some("b -> d".to_string()));
-
-        let ast: CLikeAst = relooper.render(a).expect("Did not get shape");
-
-        let stdout = io::stdout();
-        {
-            let mut out = stdout.lock();
-            ast.to_writer_pretty(&mut out);
-        }
-
-        assert!(false);
-    }
-}

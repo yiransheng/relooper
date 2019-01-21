@@ -10,8 +10,10 @@ pub struct CLikeAst<C = DefaultConfig> {
     _config: PhantomData<C>,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct DefaultConfig;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct RustConfig;
 
 pub trait StaticAstConfig {
@@ -73,7 +75,7 @@ impl<C: StaticAstConfig> From<AstKind> for CLikeAst<C> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum AstKind {
+pub enum AstKind {
     Panic,
     Node(String),
     If(String, Box<AstKind>),
@@ -135,7 +137,18 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
         }
     }
 
-    fn join(mut self, other: Self) -> Self {
+    fn join(mut self, mut other: Self) -> Self {
+        // inefficient
+        match &mut other.kind {
+            AstKind::Seq(xs) => {
+                let mut ys = Vec::with_capacity(xs.len() + 1);
+                ys.push(self.kind);
+                ys.extend(xs.drain(..));
+                return AstKind::Seq(ys).into();
+            }
+            _ => {}
+        }
+
         match &mut self.kind {
             AstKind::Seq(xs) => {
                 xs.push(other.kind);
