@@ -143,17 +143,11 @@ mod test_basics {
 
         let pseudo_code = ast.to_string();
         let expected = "
-	    L1: do {
 	      __block__a
 	      if ( true ) {
 		__block__b
-		break L1;
 	      }
-	      else {
-		break L1;
-	      }
-	    } while(false)
-	    __block__c
+	      __block__c
         ";
 
         assert!(
