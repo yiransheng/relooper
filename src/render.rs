@@ -17,8 +17,8 @@ pub struct Exit {
 #[derive(Debug, Copy, Clone)]
 pub enum Flow {
     Direct,
-    Break(Option<ShapeId>),
-    Continue(Option<ShapeId>),
+    Break(ShapeId),
+    Continue(ShapeId),
 }
 
 pub trait StructedAst {
@@ -103,11 +103,11 @@ impl<L, C> SimpleShape<L, C> {
                 }
                 FlowType::Continue => Exit {
                     set_label,
-                    flow: Flow::Continue(Some(branch.ancestor)),
+                    flow: Flow::Continue(branch.ancestor),
                 },
                 FlowType::Break => Exit {
                     set_label,
-                    flow: Flow::Break(Some(branch.ancestor)),
+                    flow: Flow::Break(branch.ancestor),
                 },
             };
 

@@ -112,7 +112,7 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
 
         match exit.flow {
             Flow::Direct => AstKind::Node(label).into(),
-            Flow::Continue(Some(shape)) => {
+            Flow::Continue(shape) => {
                 let code = format!(
                     "{}continue {}{};",
                     label,
@@ -121,21 +121,13 @@ impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
                 );
                 AstKind::Node(code).into()
             }
-            Flow::Continue(None) => {
-                let code = format!("{}continue;", label);
-                AstKind::Node(code).into()
-            }
-            Flow::Break(Some(shape)) => {
+            Flow::Break(shape) => {
                 let code = format!(
                     "{}break {}{};",
                     label,
                     c.label_prefix,
                     shape.index()
                 );
-                AstKind::Node(code).into()
-            }
-            Flow::Break(None) => {
-                let code = format!("{}break;", label);
                 AstKind::Node(code).into()
             }
         }
