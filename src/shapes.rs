@@ -122,7 +122,9 @@ impl<L, C> Shape<L, C> {
                     for b in simple.branches_out.values_mut() {
                         b.ancestor = new_id;
                         // not handled
-                        if !multi.handled.contains_key(&b.target) {
+                        if !multi.handled.contains_key(&b.target)
+                            && multi.break_count > 0
+                        {
                             b.flow_type = FlowType::Break;
                             multi.break_count += 1;
                         }
