@@ -2,7 +2,7 @@ mod pretty_print;
 
 use std::marker::PhantomData;
 
-use crate::{CondType, Exit, Flow, ShapeId, StructedAst};
+use crate::{CondType, Exit, Flow, ShapeId, StructuredAst};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CLikeAst<C = DefaultConfig> {
@@ -86,7 +86,7 @@ pub enum AstKind {
     Seq(Vec<AstKind>),
 }
 
-impl<C: StaticAstConfig> StructedAst for CLikeAst<C> {
+impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
     type Expr = str;
     type Stmt = str;
 

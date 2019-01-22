@@ -1,7 +1,7 @@
 // use petgraph::Direction;
 
 use crate::process::{process, CFGSubset, GraphEnv};
-use crate::render::StructedAst;
+use crate::render::StructuredAst;
 use crate::shapes::*;
 use crate::types::*;
 
@@ -15,7 +15,7 @@ impl<L, C> Relooper<L, C> {
             cfgraph: CFGraph::default(),
         }
     }
-    pub fn render<S: StructedAst>(self, entry: BlockId) -> Option<S>
+    pub fn render<S: StructuredAst>(self, entry: BlockId) -> Option<S>
     where
         // L: AsRef<S::Stmt> + ::std::fmt::Debug,
         // C: AsRef<S::Expr> + ::std::fmt::Debug,

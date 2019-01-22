@@ -21,7 +21,7 @@ pub enum Flow {
     Continue(ShapeId),
 }
 
-pub trait StructedAst {
+pub trait StructuredAst {
     type Expr: ?Sized;
     type Stmt: ?Sized;
 
@@ -49,7 +49,7 @@ pub trait StructedAst {
 }
 
 impl<L, C> Shape<L, C> {
-    pub fn render<S: StructedAst>(&self, root: &Self) -> S
+    pub fn render<S: StructuredAst>(&self, root: &Self) -> S
     where
         C: AsRef<S::Expr>,
         L: AsRef<S::Stmt>,
@@ -68,7 +68,7 @@ impl<L, C> Shape<L, C> {
     }
 }
 impl<L, C> SimpleShape<L, C> {
-    fn render_branch<S: StructedAst>(
+    fn render_branch<S: StructuredAst>(
         &self,
         branch: &ProcessedBranch<C>,
         fused_multi: Option<&MultipleShape<L, C>>,
@@ -114,7 +114,7 @@ impl<L, C> SimpleShape<L, C> {
             S::exit(exit)
         }
     }
-    fn render<S: StructedAst>(
+    fn render<S: StructuredAst>(
         &self,
         fused_multi: Option<&MultipleShape<L, C>>,
         root: &Shape<L, C>,
@@ -155,7 +155,11 @@ impl<L, C> SimpleShape<L, C> {
     }
 }
 impl<L, C> MultipleShape<L, C> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
+    fn render<S: StructuredAst>(
+        &self,
+        shape_id: ShapeId,
+        root: &Shape<L, C>,
+    ) -> S
     where
         L: AsRef<S::Stmt>,
         C: AsRef<S::Expr>,
@@ -177,7 +181,11 @@ impl<L, C> MultipleShape<L, C> {
     }
 }
 impl<L, C> LoopShape<L, C> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
+    fn render<S: StructuredAst>(
+        &self,
+        shape_id: ShapeId,
+        root: &Shape<L, C>,
+    ) -> S
     where
         L: AsRef<S::Stmt>,
         C: AsRef<S::Expr>,
@@ -187,7 +195,11 @@ impl<L, C> LoopShape<L, C> {
     }
 }
 impl<L, C> FusedShape<L, C> {
-    fn render<S: StructedAst>(&self, shape_id: ShapeId, root: &Shape<L, C>) -> S
+    fn render<S: StructuredAst>(
+        &self,
+        shape_id: ShapeId,
+        root: &Shape<L, C>,
+    ) -> S
     where
         L: AsRef<S::Stmt>,
         C: AsRef<S::Expr>,
