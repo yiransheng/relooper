@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate im;
+
 mod process;
 mod relooper;
 mod render;

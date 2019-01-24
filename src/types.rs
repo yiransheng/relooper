@@ -5,7 +5,7 @@ use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
 pub type DefaultIndex = u32;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ShapeId<Ix = DefaultIndex>(Ix);
 
 #[derive(Default)]

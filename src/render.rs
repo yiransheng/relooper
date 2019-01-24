@@ -1,12 +1,31 @@
-use std::convert::AsRef;
+use std::borrow::{Borrow, ToOwned};
 
 use crate::shapes::*;
 use crate::types::{BlockId, EntryType, FlowType, ProcessedBranch, ShapeId};
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum CondType<C> {
     Case(C),
     CaseLabel(BlockId),
+}
+impl<C: Clone> CondType<&C> {
+    pub fn cloned(&self) -> CondType<C> {
+        match self {
+            CondType::Case(c) => CondType::Case((*c).clone()),
+            CondType::CaseLabel(bid) => CondType::CaseLabel(*bid),
+        }
+    }
+}
+
+// primarily for Cond<&str> type usage, method named `as_owned`
+// because `to_owned` is already implemented due to derive(Clone)
+impl<C: ToOwned + ?Sized> CondType<&C> {
+    pub fn as_owned(&self) -> CondType<C::Owned> {
+        match self {
+            CondType::Case(c) => CondType::Case((*c).to_owned()),
+            CondType::CaseLabel(bid) => CondType::CaseLabel(*bid),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -51,8 +70,8 @@ pub trait StructuredAst {
 impl<L, C> Shape<L, C> {
     pub fn render<S: StructuredAst>(&self, root: &Self) -> S
     where
-        C: AsRef<S::Expr>,
-        L: AsRef<S::Stmt>,
+        C: Borrow<S::Expr>,
+        L: Borrow<S::Stmt>,
     {
         let head: S = match &self.kind {
             ShapeKind::Simple(s) => s.render(None, root),
@@ -75,8 +94,8 @@ impl<L, C> SimpleShape<L, C> {
         root: &Shape<L, C>,
     ) -> S
     where
-        C: AsRef<S::Expr>,
-        L: AsRef<S::Stmt>,
+        C: Borrow<S::Expr>,
+        L: Borrow<S::Stmt>,
     {
         if let Some(handled_shape) =
             fused_multi.and_then(|s| s.handled.get(&branch.target))
@@ -120,17 +139,17 @@ impl<L, C> SimpleShape<L, C> {
         root: &Shape<L, C>,
     ) -> S
     where
-        C: AsRef<S::Expr>,
-        L: AsRef<S::Stmt>,
+        C: Borrow<S::Expr>,
+        L: Borrow<S::Stmt>,
     {
-        let output: S = S::statement(self.internal.as_ref());
+        let output: S = S::statement(self.internal.borrow());
 
         let has_conditional_branches = self.conditional_branches().count() > 0;
 
         let conditional_exits = self.conditional_branches().map(|b| {
             let exit: S = self.render_branch(b, fused_multi, root);
             let cond = b.data.as_ref().unwrap();
-            let cond = cond.as_ref();
+            let cond = cond.borrow();
             let cond_type: CondType<&S::Expr> = CondType::Case(cond);
 
             (cond_type, exit)
@@ -161,8 +180,8 @@ impl<L, C> MultipleShape<L, C> {
         root: &Shape<L, C>,
     ) -> S
     where
-        L: AsRef<S::Stmt>,
-        C: AsRef<S::Expr>,
+        L: Borrow<S::Stmt>,
+        C: Borrow<S::Expr>,
     {
         let conditionals = self.handled.iter().map(|(target, inner_shape)| {
             let cond_type: CondType<&S::Expr> = CondType::CaseLabel(*target);
@@ -187,8 +206,8 @@ impl<L, C> LoopShape<L, C> {
         root: &Shape<L, C>,
     ) -> S
     where
-        L: AsRef<S::Stmt>,
-        C: AsRef<S::Expr>,
+        L: Borrow<S::Stmt>,
+        C: Borrow<S::Expr>,
     {
         let inner: S = self.inner.render(root);
         inner.wrap_in_loop(shape_id)
@@ -201,8 +220,8 @@ impl<L, C> FusedShape<L, C> {
         root: &Shape<L, C>,
     ) -> S
     where
-        L: AsRef<S::Stmt>,
-        C: AsRef<S::Expr>,
+        L: Borrow<S::Stmt>,
+        C: Borrow<S::Expr>,
     {
         let inner: S = self.simple.render(Some(&self.multi), root);
         if self.multi.break_count > 0 {

@@ -1,4 +1,5 @@
 // use petgraph::Direction;
+use std::borrow::Borrow;
 
 use crate::process::{process, CFGSubset, GraphEnv};
 use crate::render::StructuredAst;
@@ -17,10 +18,10 @@ impl<L, C> Relooper<L, C> {
     }
     pub fn render<S: StructuredAst>(self, entry: BlockId) -> Option<S>
     where
-        // L: AsRef<S::Stmt> + ::std::fmt::Debug,
-        // C: AsRef<S::Expr> + ::std::fmt::Debug,
-        L: AsRef<S::Stmt>,
-        C: AsRef<S::Expr>,
+        // L: Borrow<S::Stmt> + ::std::fmt::Debug,
+        // C: Borrow<S::Expr> + ::std::fmt::Debug,
+        L: Borrow<S::Stmt>,
+        C: Borrow<S::Expr>,
     {
         let shape = self.calculate(entry);
 
