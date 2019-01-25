@@ -69,10 +69,16 @@ pub trait StructuredAst {
         Self::Expr: 'a;
 }
 
-macro_rules! singleton {
+macro_rules! boxed_iter {
     ($e: expr) => {
         Box::new(iter::once($e))
     };
+    ($x: expr, ..$y: expr) => {
+        Box::new(iter::once($x).chain($y))
+    };
+    ($x: expr, $y: expr) => {{
+        Box::new(iter::once($x).chain(iter::once($y)))
+    }};
 }
 
 impl<L, C> Shape<L, C> {
@@ -151,7 +157,7 @@ impl<L, C> SimpleShape<L, C> {
                 },
             };
 
-            singleton!(S::exit(exit))
+            boxed_iter!(S::exit(exit))
         }
     }
     fn render_iter<S: StructuredAst>(
@@ -177,22 +183,20 @@ impl<L, C> SimpleShape<L, C> {
             (cond_type, exit)
         });
 
-        let default_exit = self.default_branch().map(|b| {
-            let exit = self.render_branch(b, fused_multi, root);
-            let exit = S::merge(exit);
-            exit
-        });
+        let default_exit = self
+            .default_branch()
+            .map(|b| self.render_branch(b, fused_multi, root));
 
         if has_conditional_branches {
             let exits = S::switches(
                 conditional_exits,
-                default_exit.or_else(|| Some(S::trap())),
+                default_exit.map(S::merge).or_else(|| Some(S::trap())),
             );
-            TwoItems::boxed(output, exits)
+            boxed_iter!(output, exits)
         } else if let Some(exit) = default_exit {
-            TwoItems::boxed(output, exit)
+            boxed_iter!(output, ..exit)
         } else {
-            Box::new(iter::once(output))
+            boxed_iter!(output)
         }
     }
 }
@@ -217,9 +221,9 @@ impl<L, C> MultipleShape<L, C> {
         let body = S::switches(conditionals, None);
 
         if self.break_count > 0 {
-            singleton!(body.wrap_in_block(shape_id))
+            boxed_iter!(body.wrap_in_block(shape_id))
         } else {
-            singleton!(body)
+            boxed_iter!(body)
         }
     }
 }
@@ -235,7 +239,7 @@ impl<L, C> LoopShape<L, C> {
         S: 'static,
     {
         let inner: S = self.inner.render(root);
-        singleton!(inner.wrap_in_loop(shape_id))
+        boxed_iter!(inner.wrap_in_loop(shape_id))
     }
 }
 impl<L, C> FusedShape<L, C> {
@@ -252,7 +256,7 @@ impl<L, C> FusedShape<L, C> {
         let inner = self.simple.render_iter(Some(&self.multi), root);
         let inner = S::merge(inner);
 
-        singleton!(if self.multi.break_count > 0 {
+        boxed_iter!(if self.multi.break_count > 0 {
             inner.wrap_in_block(shape_id)
         } else {
             inner

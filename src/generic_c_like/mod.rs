@@ -99,6 +99,10 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
                 AstKind::Seq(ref xs) if xs.is_empty() => None,
                 _ => Some(node.kind),
             })
+            .flat_map(|kind| match kind {
+                AstKind::Seq(xs) => xs.into_iter(),
+                _ => vec![kind].into_iter(),
+            })
             .collect();
 
         if nodes.len() == 1 {

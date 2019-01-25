@@ -57,8 +57,8 @@ impl<'a, W: fmt::Write> io::Write for FmtWriter<'a, W> {
 
 impl AstKind {
     fn is_empty_node(&self) -> bool {
-        if let AstKind::Node(ref s) = self {
-            s.is_empty()
+        if let AstKind::Seq(ref xs) = self {
+            xs.is_empty()
         } else {
             false
         }
