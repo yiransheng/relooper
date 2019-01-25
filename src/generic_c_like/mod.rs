@@ -101,6 +101,7 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
             })
             .flat_map(|kind| match kind {
                 AstKind::Seq(xs) => xs.into_iter(),
+                // Use Either for this to avoid allocation?
                 _ => vec![kind].into_iter(),
             })
             .collect();
@@ -170,7 +171,7 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
         Self::Expr: 'a,
     {
         let c = C::config();
-        let mut branches: Vec<_> = flag_first(conditionals)
+        let branches = flag_first(conditionals)
             .map(|(is_first, (cond_type, code))| {
                 let cond = match cond_type {
                     CondType::Case(expr) => expr.to_string(),
@@ -186,13 +187,12 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
                     AstKind::ElseIf(cond, Box::new(code.kind))
                 }
             })
-            .collect();
+            .chain(default_branch.into_iter().map(|default_branch| {
+                AstKind::Else(Box::new(default_branch.kind))
+            }))
+            .map(AstKind::into);
 
-        if let Some(default_branch) = default_branch {
-            branches.push(AstKind::Else(Box::new(default_branch.kind)).into());
-        }
-
-        AstKind::Seq(branches).into()
+        Self::merge(branches)
     }
 }
 
