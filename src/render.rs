@@ -73,6 +73,9 @@ macro_rules! boxed_iter {
     ($e: expr) => {
         Box::new(iter::once($e))
     };
+    (..$x: expr, ..$y: expr) => {
+        Box::new($x.chain($y))
+    };
     ($x: expr, ..$y: expr) => {
         Box::new(iter::once($x).chain($y))
     };
@@ -106,8 +109,7 @@ impl<L, C> Shape<L, C> {
             ShapeKind::Fused(s) => s.render_iter(self.id, root),
         };
         if let Some(ref next) = self.next {
-            let iter = next.render_iter(root);
-            Box::new(head.chain(iter))
+            boxed_iter!(..head, ..next.render_iter(root))
         } else {
             head
         }
@@ -261,28 +263,5 @@ impl<L, C> FusedShape<L, C> {
         } else {
             inner
         })
-    }
-}
-
-struct TwoItems<T> {
-    left: Option<T>,
-    right: Option<T>,
-}
-impl<T> TwoItems<T> {
-    #[inline]
-    fn boxed(left: T, right: T) -> Box<Self> {
-        Box::new(TwoItems {
-            left: Some(left),
-            right: Some(right),
-        })
-    }
-}
-
-impl<T> Iterator for TwoItems<T> {
-    type Item = T;
-
-    #[inline]
-    fn next(&mut self) -> Option<T> {
-        self.left.take().or_else(|| self.right.take())
     }
 }
