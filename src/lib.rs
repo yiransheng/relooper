@@ -7,7 +7,7 @@ mod render;
 mod shapes;
 mod types;
 
-mod tests;
+// mod tests;
 
 pub use crate::relooper::Relooper;
 pub use crate::render::{CondType, Exit, Flow, StructuredAst};
@@ -146,6 +146,8 @@ mod test_basics {
 
         let ast: CLikeAst = relooper.render(a).expect("Did not get shape");
 
+        println!("{:#?}", ast);
+
         let pseudo_code = ast.to_string();
         let expected = "
 	      __block__a
@@ -157,7 +159,7 @@ mod test_basics {
 
         assert!(
             code_equal(pseudo_code.trim().chars(), expected.trim().chars()),
-            pseudo_code
+            pseudo_code,
         );
     }
 

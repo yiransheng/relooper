@@ -90,11 +90,26 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
     type Expr = str;
     type Stmt = str;
 
+    fn merge<I>(nodes: I) -> Self
+    where
+        I: Iterator<Item = Self>,
+    {
+        let mut nodes: Vec<_> = nodes
+            .filter_map(|node| match node.kind {
+                AstKind::Seq(ref xs) if xs.is_empty() => None,
+                _ => Some(node.kind),
+            })
+            .collect();
+
+        if nodes.len() == 1 {
+            nodes.pop().unwrap().into()
+        } else {
+            AstKind::Seq(nodes).into()
+        }
+    }
+
     fn trap() -> Self {
         AstKind::Panic.into()
-    }
-    fn nop() -> Self {
-        AstKind::Node(String::new()).into()
     }
 
     fn statement(expr: &Self::Stmt) -> Self {
@@ -130,27 +145,6 @@ impl<C: StaticAstConfig> StructuredAst for CLikeAst<C> {
                 );
                 AstKind::Node(code).into()
             }
-        }
-    }
-
-    fn join(mut self, mut other: Self) -> Self {
-        // inefficient
-        match &mut other.kind {
-            AstKind::Seq(xs) => {
-                let mut ys = Vec::with_capacity(xs.len() + 1);
-                ys.push(self.kind);
-                ys.extend(xs.drain(..));
-                return AstKind::Seq(ys).into();
-            }
-            _ => {}
-        }
-
-        match &mut self.kind {
-            AstKind::Seq(xs) => {
-                xs.push(other.kind);
-                self
-            }
-            _ => AstKind::Seq(vec![self.kind, other.kind]).into(),
         }
     }
 

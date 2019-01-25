@@ -22,6 +22,7 @@ impl<L, C> Relooper<L, C> {
         // C: Borrow<S::Expr> + ::std::fmt::Debug,
         L: Borrow<S::Stmt>,
         C: Borrow<S::Expr>,
+        S: 'static,
     {
         let shape = self.calculate(entry);
 
