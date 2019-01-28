@@ -82,7 +82,8 @@ where
 
         let branching = Branching {
             branches,
-            default_branch: default_branch.or_else(|| Some(Box::new(Nop))),
+            default_branch,
+            // default_branch: default_branch.or_else(|| Some(Box::new(Nop))),
         };
 
         Box::new(branching)
