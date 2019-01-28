@@ -7,7 +7,7 @@ mod render;
 mod shapes;
 mod types;
 
-// mod tests;
+mod tests;
 
 pub use crate::relooper::Relooper;
 pub use crate::render::{CondType, Exit, Flow, StructuredAst};

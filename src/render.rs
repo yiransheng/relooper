@@ -4,7 +4,7 @@ use std::iter;
 use crate::shapes::*;
 use crate::types::{BlockId, EntryType, FlowType, ProcessedBranch, ShapeId};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum CondType<C> {
     Case(C),
     CaseLabel(BlockId),

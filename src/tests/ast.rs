@@ -1,6 +1,9 @@
-use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
+use std::iter;
+use std::marker::PhantomData;
 
 use petgraph::graphmap::DiGraphMap;
 
@@ -8,123 +11,259 @@ use im::vector::{Iter, Vector};
 
 use crate::{BlockId, CondType, Exit, Flow, ShapeId, StructuredAst};
 
-#[derive(Debug, Clone)]
-pub struct Code<L: Clone, C: Eq + Hash + Clone> {
-    pub list: Vector<Node<L, C>>,
+pub trait GraphMaker<L, C> {
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord;
 }
-
-impl<L: Clone, C: Eq + Hash + Clone> Code<L, C> {
-    pub fn singleton(node: Node<L, C>) -> Self {
-        Code {
-            list: Vector::unit(node),
-        }
-    }
-
-    pub fn nodes(&self) -> Iter<Node<L, C>> {
-        self.list.iter()
+impl<L, C> GraphMaker<L, C> for Box<dyn GraphMaker<L, C>> {
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        self.make_cfg(graph)
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum Node<L: Clone, C: Eq + Hash + Clone> {
-    Nop,
-    Panic,
-    Opaque(L),
-    SetLabel(BlockId),
-    Break(ShapeId),
-    Continue(ShapeId),
-    Switches(HashMap<CondType<C>, Code<L, C>>, Option<Code<L, C>>),
-    Loop(ShapeId, Code<L, C>),
-    Block(ShapeId, Code<L, C>),
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub enum Vertex<L> {
-    Entry,
-    Original(L),
-    SetLabel(BlockId),
-    Shape(ShapeId),
-}
-
-#[derive(Debug)]
-pub enum Edge<C> {
-    Direct,
-    Condition(CondType<C>),
-    Otherwise,
-    Continue,
-    Break,
-}
-
-impl<L: Debug + Copy + Hash + Eq + Ord, C: Debug + Eq + Hash + Clone>
-    Code<L, C>
+impl<L, C> StructuredAst for Box<dyn GraphMaker<L, C>>
+where
+    C: Eq + Hash + Clone + 'static,
+    L: Copy + Hash + Eq + Ord + 'static,
 {
-    pub fn build_graph(
-        &self,
-        entry: Vertex<L>,
-        graph: &mut DiGraphMap<Vertex<L>, Edge<C>>,
-    ) {
-        let mut vertex = entry;
+    type Expr = C;
+    type Stmt = L;
 
-        for node in self.nodes() {
-            match node {
-                Node::Opaque(node) => {
-                    let v = Vertex::Original(node.clone());
-                    graph.add_node(v);
-                    graph.add_edge(vertex, v, Edge::Direct);
-                    vertex = v;
-                }
-                Node::Nop => continue,
-                Node::Panic => break,
-                Node::SetLabel(label) => {
-                    let v = Vertex::SetLabel(*label);
-                    graph.add_node(v);
+    fn merge<I>(nodes: I) -> Self
+    where
+        Self: Sized,
+        I: Iterator<Item = Self>,
+    {
+        merge_makers(nodes)
+    }
 
-                    graph.add_edge(vertex, v, Edge::Direct);
-                    vertex = v;
-                }
-                Node::Break(shape_id) => {
-                    let v = Vertex::Shape(*shape_id);
-                    graph.add_edge(vertex, v, Edge::Break);
-                }
-                Node::Continue(shape_id) => {
-                    let v = Vertex::Shape(*shape_id);
-                    graph.add_edge(vertex, v, Edge::Continue);
-                }
-                Node::Switches(branches, default_branch) => {
-                    for (edge, code) in branches
-                        .iter()
-                        .map(|(cond, code)| {
-                            (Edge::Condition(cond.clone()), code)
-                        })
-                        .chain(
-                            default_branch
-                                .as_ref()
-                                .map(|code| (Edge::Otherwise, code))
-                                .into_iter(),
-                        )
-                    {
-                        code.build_graph(vertex, graph);
+    fn trap() -> Self {
+        panic!()
+    }
 
-                        graph.add_edge(vertex, entry, edge);
-                    }
-                }
-                Node::Loop(shape_id, code) => {
-                    let v = Vertex::Shape(*shape_id);
-                    graph.add_edge(vertex, v, Edge::Direct);
+    fn statement(stmt: &Self::Stmt) -> Self {
+        Box::new(Node::Original(*stmt))
+    }
 
-                    vertex = v;
+    fn exit(b: Exit) -> Self {
+        Box::new(b)
+    }
 
-                    code.build_graph(vertex, graph);
-                }
-                Node::Block(shape_id, code) => {
-                    let v = Vertex::Shape(*shape_id);
-                    graph.add_edge(vertex, v, Edge::Direct);
+    fn wrap_in_loop(self, shape_id: ShapeId) -> Self {
+        self.wrap_in_block(shape_id)
+    }
 
-                    vertex = v;
+    fn wrap_in_block(self, shape_id: ShapeId) -> Self {
+        let block = Block {
+            id: shape_id,
+            inner: self,
+        };
+        Box::new(block)
+    }
 
-                    code.build_graph(vertex, graph);
-                }
+    fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
+        conditionals: I,
+        default_branch: Option<Self>,
+    ) -> Self
+    where
+        Self::Expr: 'a,
+    {
+        let branches = conditionals
+            .map(|(cond, inner)| (cond.cloned(), inner))
+            .collect();
+
+        let branching = Branching {
+            branches,
+            default_branch,
+        };
+
+        Box::new(branching)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+enum Node<L> {
+    Original(L),
+    Shape(ShapeId),
+    Dummy(usize, Option<BlockId>),
+}
+
+impl<L> Node<L> {
+    fn make_dummy<C>(
+        graph: &DiGraphMap<Node<L>, Edge<C>>,
+        label: Option<BlockId>,
+    ) -> Self
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        Node::Dummy(graph.node_count(), label)
+    }
+}
+
+impl<L, C> GraphMaker<L, C> for Node<L> {
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        graph.add_node(*self);
+        *self
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+enum Edge<C> {
+    Direct,
+    Original(C),
+    MatchLabel(BlockId),
+    Break,
+    Continue,
+}
+
+impl<L, C> GraphMaker<L, C> for Exit {
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let node = Node::make_dummy(&*graph, self.set_label);
+
+        match self.flow {
+            Flow::Direct => {}
+            Flow::Break(shape) => {
+                let shape = Node::Shape(shape);
+                graph.add_node(shape);
+                graph.add_edge(node, shape, Edge::Break);
+            }
+            Flow::Continue(shape) => {
+                let shape = Node::Shape(shape);
+                graph.add_node(shape);
+                graph.add_edge(node, shape, Edge::Continue);
             }
         }
+
+        node
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+struct Nop;
+
+impl<L, C> GraphMaker<L, C> for Nop {
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let node = Node::make_dummy(&*graph, None);
+        graph.add_node(node);
+        node
+    }
+}
+
+struct Block<G> {
+    id: ShapeId,
+    inner: G,
+}
+
+impl<L, C, G> GraphMaker<L, C> for Block<G>
+where
+    G: GraphMaker<L, C>,
+{
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let inner_node = self.inner.make_cfg(graph);
+        let entry_node = Node::Shape(self.id);
+        graph.add_node(entry_node);
+        graph.add_edge(entry_node, inner_node, Edge::Direct);
+
+        entry_node
+    }
+}
+
+struct Branching<C, G> {
+    branches: HashMap<CondType<C>, G>,
+    default_branch: Option<G>,
+}
+
+impl<L, C, G> GraphMaker<L, C> for Branching<C, G>
+where
+    G: GraphMaker<L, C>,
+    C: Eq + Hash + Clone,
+{
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let entry = Node::make_dummy(&*graph, None);
+
+        for (inner, edge) in self
+            .branches
+            .iter()
+            .map(|(cond, inner)| match cond {
+                CondType::Case(cond) => (inner, Edge::Original(cond.clone())),
+                CondType::CaseLabel(label) => (inner, Edge::MatchLabel(*label)),
+            })
+            .chain(
+                self.default_branch
+                    .as_ref()
+                    .into_iter()
+                    .map(|inner| (inner, Edge::Direct)),
+            )
+        {
+            let to_node = inner.make_cfg(graph);
+            graph.add_edge(entry, to_node, edge);
+        }
+
+        entry
+    }
+}
+
+struct Chain<L, C, G> {
+    inner: G,
+    next: Option<Box<dyn GraphMaker<L, C>>>,
+}
+
+fn merge_makers<L, C, I>(mut xs: I) -> Box<dyn GraphMaker<L, C>>
+where
+    I: Iterator<Item = Box<dyn GraphMaker<L, C>>>,
+    C: Eq + Hash + Clone,
+    L: Copy + Hash + Eq + Ord,
+    L: 'static,
+    C: 'static,
+{
+    let head = xs.next();
+
+    if let Some(head) = head {
+        let chained = Chain {
+            inner: head,
+            next: Some(merge_makers(xs)),
+        };
+        Box::new(chained)
+    } else {
+        Box::new(Nop)
+    }
+}
+
+impl<L, C, G> GraphMaker<L, C> for Chain<L, C, G>
+where
+    G: GraphMaker<L, C>,
+    C: Eq + Hash + Clone,
+{
+    fn make_cfg(&self, graph: &mut DiGraphMap<Node<L>, Edge<C>>) -> Node<L>
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let entry = self.inner.make_cfg(graph);
+
+        if let Some(next) = self.next.as_ref() {
+            let next_node = next.make_cfg(graph);
+            graph.add_edge(entry, next_node, Edge::Direct);
+        }
+
+        entry
     }
 }
