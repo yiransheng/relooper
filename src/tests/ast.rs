@@ -184,6 +184,7 @@ impl<L, C> GraphMaker<L, C> for Nop {
         L: Copy + Hash + Eq + Ord,
     {
         let node = Node::make_dummy(graph, None);
+        println!("Nop: {:?}", graph.node_count() - 1);
 
         (node, Some(node))
     }
