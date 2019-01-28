@@ -44,8 +44,8 @@ mod test_breaks_iter {
             neighbors_1.insert(x);
         }
 
-        println!("Checking node: {}", node);
         if neighbors_0 != neighbors_1 {
+            println!("Checking node: {}", node);
             println!("Original: {:#?}", neighbors_0);
             println!("Procesed: {:#?}", neighbors_1);
         }
