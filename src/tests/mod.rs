@@ -25,6 +25,7 @@ mod test_breaks_iter {
         let b = relooper.add_block(1);
         let c = relooper.add_block(2);
         let d = relooper.add_block(3);
+        let e = relooper.add_block(4);
 
         //       +--------+
         //       |        |
@@ -38,7 +39,7 @@ mod test_breaks_iter {
         relooper.add_branch(b, c, None);
         relooper.add_branch(b, d, Some(-1));
         relooper.add_branch(c, b, None);
-        // relooper.add_branch(c, d, Some(99));
+        relooper.add_branch(c, e, Some(99));
 
         let maker: Box<dyn GraphMaker<i32, i32>> =
             relooper.render(a).expect("Did not get shape");

@@ -39,12 +39,12 @@ where
     type Expr = C;
     type Stmt = L;
 
-    fn merge<I>(mut nodes: I) -> Self
+    fn merge<I>(nodes: I) -> Self
     where
         Self: Sized,
         I: Iterator<Item = Self>,
     {
-        merge_makers(nodes)
+        merge_makers(nodes).unwrap_or_else(|| Box::new(Nop))
     }
 
     fn trap() -> Self {
@@ -279,7 +279,7 @@ struct Chain<L, C, G> {
     next: Option<Box<dyn GraphMaker<L, C>>>,
 }
 
-fn merge_makers<L, C, I>(mut xs: I) -> Box<dyn GraphMaker<L, C>>
+fn merge_makers<L, C, I>(mut xs: I) -> Option<Box<dyn GraphMaker<L, C>>>
 where
     I: Iterator<Item = Box<dyn GraphMaker<L, C>>>,
     C: Eq + Hash + Clone,
@@ -292,11 +292,11 @@ where
     if let Some(head) = head {
         let chained = Chain {
             inner: head,
-            next: Some(merge_makers(xs)),
+            next: merge_makers(xs),
         };
-        Box::new(chained)
+        Some(Box::new(chained))
     } else {
-        Box::new(Nop)
+        None
     }
 }
 
