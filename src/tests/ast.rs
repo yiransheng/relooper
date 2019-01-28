@@ -15,7 +15,7 @@ pub trait GraphMaker<L, C> {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord;
 }
@@ -23,11 +23,11 @@ impl<L, C> GraphMaker<L, C> for Box<dyn GraphMaker<L, C>> {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        self.make_cfg(graph)
+        (**self).make_cfg(graph)
     }
 }
 
@@ -39,7 +39,7 @@ where
     type Expr = C;
     type Stmt = L;
 
-    fn merge<I>(nodes: I) -> Self
+    fn merge<I>(mut nodes: I) -> Self
     where
         Self: Sized,
         I: Iterator<Item = Self>,
@@ -52,7 +52,8 @@ where
     }
 
     fn statement(stmt: &Self::Stmt) -> Self {
-        Box::new(Node::Original(*stmt))
+        println!("Stmt");
+        Box::new(OriginalNode { node: *stmt })
     }
 
     fn exit(b: Exit) -> Self {
@@ -94,69 +95,78 @@ where
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Node<L> {
     Original(L),
-    Shape(ShapeId),
+    ShapeEnter(ShapeId),
+    ShapeExit(ShapeId),
     Dummy(usize, Option<BlockId>),
 }
 
 impl<L> Node<L> {
     fn make_dummy<C>(
-        graph: &DiGraphMap<Node<L>, Edge<C>>,
+        graph: &mut DiGraphMap<Node<L>, Edge<C>>,
         label: Option<BlockId>,
     ) -> Self
     where
         L: Copy + Hash + Eq + Ord,
     {
-        Node::Dummy(graph.node_count(), label)
+        let node = Node::Dummy(graph.node_count(), label);
+        graph.add_node(node);
+        node
     }
 }
 
-impl<L, C> GraphMaker<L, C> for Node<L> {
+struct OriginalNode<L> {
+    node: L,
+}
+
+impl<L, C> GraphMaker<L, C> for OriginalNode<L> {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        graph.add_node(*self);
-        (*self, *self)
+        let node = Node::Original(self.node);
+
+        graph.add_node(node);
+
+        (node, Some(node))
     }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Edge<C> {
-    Direct,
-    Original(C),
+    Forward,
+    Conditional(C),
     MatchLabel(BlockId),
-    Break,
-    Continue,
+    Backward,
 }
 
 impl<L, C> GraphMaker<L, C> for Exit {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        let node = Node::make_dummy(&*graph, self.set_label);
+        let node = Node::make_dummy(graph, self.set_label);
 
         match self.flow {
-            Flow::Direct => (node, node),
+            Flow::Direct => (node, Some(node)),
             Flow::Break(shape) => {
-                let shape = Node::Shape(shape);
+                let shape = Node::ShapeExit(shape);
                 graph.add_node(shape);
-                graph.add_edge(node, shape, Edge::Break);
+                graph.add_edge(node, shape, Edge::Forward);
 
-                (node, shape)
+                (node, None)
             }
             Flow::Continue(shape) => {
-                let shape = Node::Shape(shape);
+                let shape = Node::ShapeEnter(shape);
                 graph.add_node(shape);
-                graph.add_edge(node, shape, Edge::Continue);
+                graph.add_edge(node, shape, Edge::Backward);
 
-                (node, shape)
+                (node, None)
             }
         }
     }
@@ -169,14 +179,13 @@ impl<L, C> GraphMaker<L, C> for Nop {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        let node = Node::make_dummy(&*graph, None);
-        graph.add_node(node);
+        let node = Node::make_dummy(graph, None);
 
-        (node, node)
+        (node, Some(node))
     }
 }
 
@@ -192,16 +201,27 @@ where
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        let (inner_node, inner_exit) = self.inner.make_cfg(graph);
-        let entry_node = Node::Shape(self.id);
-        graph.add_node(entry_node);
-        graph.add_edge(entry_node, inner_node, Edge::Direct);
+        let entry_node = Node::ShapeEnter(self.id);
+        let exit_node = Node::ShapeExit(self.id);
 
-        (entry_node, inner_exit)
+        graph.add_node(entry_node);
+        graph.add_node(exit_node);
+
+        let (inner_node, inner_exit) = self.inner.make_cfg(graph);
+
+        graph.add_edge(entry_node, inner_node, Edge::Forward);
+
+        if let Some(inner_exit) = inner_exit {
+            if exit_node != inner_exit {
+                graph.add_edge(inner_exit, exit_node, Edge::Forward);
+            }
+        }
+
+        (entry_node, Some(exit_node))
     }
 }
 
@@ -218,33 +238,38 @@ where
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
-        let entry = Node::make_dummy(&*graph, None);
-        let exit = Node::make_dummy(&*graph, None);
+        let entry = Node::make_dummy(graph, None);
+        let exit = Node::make_dummy(graph, None);
 
         for (inner, edge) in self
             .branches
             .iter()
             .map(|(cond, inner)| match cond {
-                CondType::Case(cond) => (inner, Edge::Original(cond.clone())),
+                CondType::Case(cond) => {
+                    (inner, Edge::Conditional(cond.clone()))
+                }
                 CondType::CaseLabel(label) => (inner, Edge::MatchLabel(*label)),
             })
             .chain(
                 self.default_branch
                     .as_ref()
                     .into_iter()
-                    .map(|inner| (inner, Edge::Direct)),
+                    .map(|inner| (inner, Edge::Forward)),
             )
         {
             let (to_node, inner_exit) = inner.make_cfg(graph);
+
             graph.add_edge(entry, to_node, edge);
-            graph.add_edge(inner_exit, exit, Edge::Direct);
+            if let Some(inner_exit) = inner_exit {
+                graph.add_edge(inner_exit, exit, Edge::Forward);
+            }
         }
 
-        (entry, exit)
+        (entry, Some(exit))
     }
 }
 
@@ -282,7 +307,7 @@ where
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
-    ) -> (Node<L>, Node<L>)
+    ) -> (Node<L>, Option<Node<L>>)
     where
         L: Copy + Hash + Eq + Ord,
     {
@@ -290,7 +315,9 @@ where
 
         if let Some(next) = self.next.as_ref() {
             let (next_entry, next_exit) = next.make_cfg(graph);
-            graph.add_edge(exit, next_entry, Edge::Direct);
+            if let Some(exit) = exit {
+                graph.add_edge(exit, next_entry, Edge::Forward);
+            }
 
             (entry, next_exit)
         } else {
