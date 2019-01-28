@@ -113,6 +113,7 @@ impl<L, C> Shape<L, C> {
         let mut next = self.next.take().unwrap();
         next.fuse();
         let new_id = next.id;
+        let old_id = self.id;
         self.id = new_id;
         self.next = next.next.take();
 
@@ -120,7 +121,9 @@ impl<L, C> Shape<L, C> {
             if let ShapeKind::Simple(mut simple) = kind {
                 if let ShapeKind::Multi(mut multi) = next.kind {
                     for b in simple.branches_out.values_mut() {
-                        b.ancestor = new_id;
+                        if b.ancestor == old_id {
+                            b.ancestor = new_id;
+                        }
                         // not handled
                         if !multi.handled.contains_key(&b.target)
                             && multi.break_count > 0

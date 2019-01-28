@@ -7,8 +7,6 @@ use std::marker::PhantomData;
 
 use petgraph::graphmap::DiGraphMap;
 
-use im::vector::{Iter, Vector};
-
 use crate::{BlockId, CondType, Exit, Flow, ShapeId, StructuredAst};
 
 pub trait GraphMaker<L, C> {
@@ -48,12 +46,11 @@ where
     }
 
     fn trap() -> Self {
-        panic!()
+        Box::new(Trap)
     }
 
     fn statement(stmt: &Self::Stmt) -> Self {
-        println!("Stmt");
-        Box::new(OriginalNode { node: *stmt })
+        Box::new(MeaningfulNode { node: *stmt })
     }
 
     fn exit(b: Exit) -> Self {
@@ -85,7 +82,7 @@ where
 
         let branching = Branching {
             branches,
-            default_branch,
+            default_branch: default_branch.or_else(|| Some(Box::new(Nop))),
         };
 
         Box::new(branching)
@@ -94,7 +91,7 @@ where
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Node<L> {
-    Original(L),
+    Meaningful(L),
     ShapeEnter(ShapeId),
     ShapeExit(ShapeId),
     Dummy(usize, Option<BlockId>),
@@ -114,11 +111,11 @@ impl<L> Node<L> {
     }
 }
 
-struct OriginalNode<L> {
+struct MeaningfulNode<L> {
     node: L,
 }
 
-impl<L, C> GraphMaker<L, C> for OriginalNode<L> {
+impl<L, C> GraphMaker<L, C> for MeaningfulNode<L> {
     fn make_cfg(
         &self,
         graph: &mut DiGraphMap<Node<L>, Edge<C>>,
@@ -126,7 +123,7 @@ impl<L, C> GraphMaker<L, C> for OriginalNode<L> {
     where
         L: Copy + Hash + Eq + Ord,
     {
-        let node = Node::Original(self.node);
+        let node = Node::Meaningful(self.node);
 
         graph.add_node(node);
 
@@ -184,9 +181,25 @@ impl<L, C> GraphMaker<L, C> for Nop {
         L: Copy + Hash + Eq + Ord,
     {
         let node = Node::make_dummy(graph, None);
-        println!("Nop: {:?}", graph.node_count() - 1);
 
         (node, Some(node))
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+struct Trap;
+
+impl<L, C> GraphMaker<L, C> for Trap {
+    fn make_cfg(
+        &self,
+        graph: &mut DiGraphMap<Node<L>, Edge<C>>,
+    ) -> (Node<L>, Option<Node<L>>)
+    where
+        L: Copy + Hash + Eq + Ord,
+    {
+        let node = Node::make_dummy(graph, None);
+
+        (node, None)
     }
 }
 
