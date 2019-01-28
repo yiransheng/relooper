@@ -55,7 +55,7 @@ mod test_breaks_iter {
 
     quickcheck! {
         fn reloops_unstructured_cfg(unstructured: UnstructuredCfg) -> bool {
-            return true;
+            // return true;
 
             let unstructured = unstructured.graph;
 
@@ -137,6 +137,6 @@ mod test_breaks_iter {
             println!("B: {} {:?}", n, e);
         }
 
-        assert!(false);
+        assert!(true);
     }
 }
