@@ -41,25 +41,64 @@ pub enum Flow {
     Continue(ShapeId),
 }
 
+/// An interface to specify how to build a structured AST.
+///
+/// Target language AST should support the following features, reflected in
+/// trait required methods.
+///
+/// - Sequential statements
+/// - Loops (like rust `loop`)
+/// - Labeled blocks (eg. `L1: do { ... } while(0)`)
+/// - Mutable variables
+/// - `if` / `else if` / `else`
+///     - Or, `switch / default`
+///
+/// Requirements are fairly broad, most imperative languages should suffice. JavaScript, or course,
+/// is the canonical example.
+///
 pub trait StructuredAst {
     type Expr: ?Sized;
     type Stmt: ?Sized;
 
+    /// Merges multiple AST nodes into a single node. Input nodes are assumed to be executed
+    /// sequentially.
     fn merge<I>(nodes: I) -> Self
     where
         Self: Sized,
         I: Iterator<Item = Self>;
 
+    /// An AST node representing "halt". Depending on use case it can be either a `panic` or a
+    /// `return` / `end` / `halt`.
+    ///
+    /// Unlike Emscripten Relooper, which requires every basic block fed into Relooper must have
+    /// one and only one default (unconditional) branch going somewhere, we allow inputs to omit
+    /// such default branch. In which case, a `trap` will be generated.
     fn trap() -> Self;
 
+    /// AST leaf node.
+    ///
+    /// Note: it's possible to equate `Stmt` and `Expr` associated types (use same type), if targeting an
+    /// expression oriented language (such as `rust`).
     fn statement(stmt: &Self::Stmt) -> Self;
 
+    /// AST Node to represent `break` / `continue` statements.
     fn exit(b: Exit) -> Self;
 
+    /// Take an AST node and wrap it in a loop, `shape_id` can be used to label the loop.
+    ///
+    /// `break` and `continue` statements inside the loop are guaranteed to have an corresponding
+    /// `ShapeId` as well.
     fn wrap_in_loop(self, shape_id: ShapeId) -> Self;
 
+    /// Wraps an AST node in a labeled block. (Inner node contains `break` statements to escape
+    /// this block from deeply nested contexts).
     fn wrap_in_block(self, shape_id: ShapeId) -> Self;
 
+    /// Given an iterator of AST nodes and their conditions, which can be either a condition from
+    /// input CFG or a check on label variable, and an optional default node, creates a combined
+    /// AST node.
+    ///
+    /// This function should produce a `switch` block, or an `if / else if / else` chain.
     fn switches<'a, I: Iterator<Item = (CondType<&'a Self::Expr>, Self)>>(
         conditionals: I,
         default_branch: Option<Self>,
