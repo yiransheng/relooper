@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use petgraph::graphmap::DiGraphMap;
 use petgraph::{Direction, Graph};
 use quickcheck::{Arbitrary, Gen};
@@ -9,8 +11,7 @@ pub struct UnstructuredCfg {
 
 impl Arbitrary for UnstructuredCfg {
     fn arbitrary<G: Gen>(g: &mut G) -> Self {
-        // let node_count = usize::arbitrary(g) % 8;
-        let node_count = 3;
+        let node_count = usize::arbitrary(g) % 128;
         let max_edge_count = usize::arbitrary(g) % 4 + 1;
 
         let graph = random_unstructured(node_count, max_edge_count, g);
@@ -30,6 +31,9 @@ fn random_unstructured<G: Gen>(
         return graph;
     }
 
+    // make sure all edge weights (condition) are unique globally
+    let mut edge_weights = HashSet::new();
+
     for node in 0..node_count {
         let node = node as i32;
         graph.add_node(node);
@@ -47,7 +51,15 @@ fn random_unstructured<G: Gen>(
 
             // no existing branch
             if graph.edge_weight(node, target).is_none() {
-                let weight = i32::arbitrary(g);
+                let mut weight;
+                loop {
+                    weight = i32::arbitrary(g);
+                    if !edge_weights.contains(&weight) {
+                        edge_weights.insert(weight);
+                        break;
+                    }
+                }
+
                 graph.add_edge(node, target, Some(weight));
             }
         }

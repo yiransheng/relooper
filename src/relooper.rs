@@ -18,22 +18,22 @@ impl<L, C> Relooper<L, C> {
     }
     pub fn render<S: StructuredAst>(self, entry: BlockId) -> Option<S>
     where
-        L: Borrow<S::Stmt> + ::std::fmt::Debug,
-        C: Borrow<S::Expr> + ::std::fmt::Debug,
-        // L: Borrow<S::Stmt>,
-        // C: Borrow<S::Expr>,
+        // L: Borrow<S::Stmt> + ::std::fmt::Debug,
+        // C: Borrow<S::Expr> + ::std::fmt::Debug,
+        L: Borrow<S::Stmt>,
+        C: Borrow<S::Expr>,
         S: 'static,
     {
         let shape = self.calculate(entry);
 
         shape.map(|mut shape| {
             shape.fuse();
-            {
-                use std::io::{self, Write};
-                let stdout = io::stdout();
+            // {
+            // use std::io::{self, Write};
+            // let stdout = io::stdout();
 
-                writeln!(stdout.lock(), "{:#?}", shape);
-            }
+            // writeln!(stdout.lock(), "{:#?}", shape);
+            // }
             shape.render(&shape)
         })
     }

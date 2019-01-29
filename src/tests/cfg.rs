@@ -12,7 +12,10 @@ type NodeState<L, C> = (Node<L>, Option<BlockId>, Option<C>);
 
 pub struct MeaningfulNeighbors<L, C> {
     dir: Direction,
+    src: Node<L>,
+    is_initial: bool,
     discovered: HashSet<NodeState<L, C>>,
+    branches_taken: HashSet<Option<C>>,
     queue: VecDeque<NodeState<L, C>>,
 }
 impl<L, C> MeaningfulNeighbors<L, C>
@@ -26,7 +29,10 @@ where
 
         MeaningfulNeighbors {
             dir,
+            src: Node::Meaningful(node),
+            is_initial: true,
             discovered: HashSet::default(),
+            branches_taken: HashSet::default(),
             queue,
         }
     }
@@ -36,7 +42,24 @@ where
         graph: &DiGraphMap<Node<L>, Edge<C>>,
     ) -> Option<(L, Option<C>)> {
         while let Some((src, label, cond)) = self.queue.pop_front() {
-            let mut ret = None;
+            if let Node::Meaningful(x) = src {
+                if src == self.src && self.is_initial {
+                    self.is_initial = false;
+                } else {
+                    if self.branches_taken.contains(&cond) {
+                        continue;
+                    } else {
+                        self.branches_taken.insert(cond.clone());
+                        return Some((x, cond));
+                    }
+                }
+            }
+
+            if self.discovered.contains(&(src, label, cond.clone())) {
+                continue;
+            } else {
+                self.discovered.insert((src, label, cond.clone()));
+            }
 
             for node in graph.neighbors_directed(src, self.dir) {
                 let edge = graph.edge_weight(src, node).unwrap();
@@ -61,28 +84,63 @@ where
                     _ => {}
                 }
 
-                if !self.discovered.contains(&node_state) {
-                    let cond = node_state.2.clone();
-                    let enque_state = node_state.clone();
+                if node_state.1.is_some() && node_state.2.is_some() {}
 
-                    self.discovered.insert(node_state);
-
-                    match node {
-                        Node::Meaningful(node) => {
-                            ret = Some((node, cond));
-                        }
-                        _ => {
-                            self.queue.push_back(enque_state);
-                        }
-                    }
-                }
-            }
-
-            if ret.is_some() {
-                return ret;
+                self.queue.push_back(node_state);
             }
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn test_multi_direct_neighbors() {
+        let mut graph: DiGraphMap<Node<i32>, Edge<i32>> = DiGraphMap::new();
+        graph.add_node(Node::Meaningful(0));
+        graph.add_node(Node::Meaningful(1));
+        graph.add_node(Node::Meaningful(2));
+        graph.add_node(Node::Meaningful(3));
+        graph.add_node(Node::Dummy(0, None));
+
+        graph.add_edge(
+            Node::Meaningful(0),
+            Node::Dummy(0, None),
+            Edge::Forward,
+        );
+        graph.add_edge(
+            Node::Dummy(0, None),
+            Node::Meaningful(1),
+            Edge::Conditional(-1),
+        );
+        graph.add_edge(
+            Node::Dummy(0, None),
+            Node::Meaningful(2),
+            Edge::Conditional(-2),
+        );
+        graph.add_edge(
+            Node::Dummy(0, None),
+            Node::Meaningful(3),
+            Edge::Forward,
+        );
+
+        let mut searcher = MeaningfulNeighbors::new(0, Direction::Outgoing);
+        let mut neighbors = HashSet::new();
+
+        while let Some(x) = searcher.next(&graph) {
+            neighbors.insert(x);
+        }
+
+        let mut expected = HashSet::new();
+        expected.insert((1, Some(-1)));
+        expected.insert((2, Some(-2)));
+        expected.insert((3, None));
+
+        assert_eq!(&expected, &neighbors);
     }
 }

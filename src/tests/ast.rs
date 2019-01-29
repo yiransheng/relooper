@@ -1,5 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::iter;
@@ -132,7 +132,7 @@ impl<L, C> GraphMaker<L, C> for MeaningfulNode<L> {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Edge<C> {
     Forward,
     Conditional(C),
@@ -282,6 +282,10 @@ where
             if let Some(inner_exit) = inner_exit {
                 graph.add_edge(inner_exit, exit, Edge::Forward);
             }
+        }
+
+        if self.default_branch.is_none() {
+            graph.add_edge(entry, exit, Edge::Forward);
         }
 
         (entry, Some(exit))
