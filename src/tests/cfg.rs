@@ -99,35 +99,25 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
+    use maplit::hashset;
+
     #[test]
     fn test_multi_direct_neighbors() {
-        let mut graph: DiGraphMap<Node<i32>, Edge<i32>> = DiGraphMap::new();
-        graph.add_node(Node::Meaningful(0));
-        graph.add_node(Node::Meaningful(1));
-        graph.add_node(Node::Meaningful(2));
-        graph.add_node(Node::Meaningful(3));
-        graph.add_node(Node::Dummy(0, None));
-
-        graph.add_edge(
-            Node::Meaningful(0),
-            Node::Dummy(0, None),
-            Edge::Forward,
-        );
-        graph.add_edge(
-            Node::Dummy(0, None),
-            Node::Meaningful(1),
-            Edge::Conditional(-1),
-        );
-        graph.add_edge(
-            Node::Dummy(0, None),
-            Node::Meaningful(2),
-            Edge::Conditional(-2),
-        );
-        graph.add_edge(
-            Node::Dummy(0, None),
-            Node::Meaningful(3),
-            Edge::Forward,
-        );
+        let mut graph: DiGraphMap<Node<i32>, Edge<i32>> =
+            DiGraphMap::from_edges(&[
+                (Node::Meaningful(0), Node::Dummy(0, None), Edge::Forward),
+                (
+                    Node::Dummy(0, None),
+                    Node::Meaningful(1),
+                    Edge::Conditional(-1),
+                ),
+                (
+                    Node::Dummy(0, None),
+                    Node::Meaningful(2),
+                    Edge::Conditional(-2),
+                ),
+                (Node::Dummy(0, None), Node::Meaningful(3), Edge::Forward),
+            ]);
 
         let mut searcher = MeaningfulNeighbors::new(0, Direction::Outgoing);
         let mut neighbors = HashSet::new();
@@ -136,10 +126,11 @@ mod tests {
             neighbors.insert(x);
         }
 
-        let mut expected = HashSet::new();
-        expected.insert((1, Some(-1)));
-        expected.insert((2, Some(-2)));
-        expected.insert((3, None));
+        let expected = hashset! {
+            (1i32, Some(-1i32)),
+            (2, Some(-2)),
+            (3, None)
+        };
 
         assert_eq!(&expected, &neighbors);
     }

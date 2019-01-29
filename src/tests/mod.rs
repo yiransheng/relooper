@@ -14,7 +14,7 @@ use self::unstructured::UnstructuredCfg;
 use crate::{CondType, Exit, Flow, ShapeId, StructuredAst};
 
 #[cfg(test)]
-mod test_breaks_iter {
+mod quickcheck_graphs {
     use super::*;
     use crate::{Flow, Relooper};
     use std::io;
@@ -62,6 +62,7 @@ mod test_breaks_iter {
             if unstructured.node_count() == 0 {
                 return true;
             }
+
             let mut relooper: Relooper<i32> = Relooper::new();
             let mut mapping = HashMap::new();
             for node in unstructured.nodes() {
@@ -104,39 +105,5 @@ mod test_breaks_iter {
 
             true
         }
-    }
-
-    #[test]
-    fn test_simple_loop_breaks() {
-        let mut relooper: Relooper<i32> = Relooper::new();
-
-        let a0 = relooper.add_block(0);
-        let a1 = relooper.add_block(1);
-        let a2 = relooper.add_block(2);
-
-        relooper.add_branch(a0, a0, None);
-        relooper.add_branch(a0, a1, Some(-54));
-        relooper.add_branch(a0, a2, Some(99));
-        relooper.add_branch(a2, a1, None);
-        relooper.add_branch(a1, a0, Some(86));
-
-        let maker: Box<dyn GraphMaker<i32, i32>> =
-            relooper.render(a0).expect("Did not get shape");
-
-        let mut graph: DiGraphMap<_, _> = DiGraphMap::default();
-        maker.make_cfg(&mut graph);
-
-        let stdout = io::stdout();
-        {
-            use io::Write;
-            writeln!(stdout.lock(), "{:?}", Dot::with_config(&graph, &[]),);
-        }
-
-        let mut search = MeaningfulNeighbors::new(0, Direction::Outgoing);
-        while let Some((n, e)) = search.next(&graph) {
-            println!("B: {} {:?}", n, e);
-        }
-
-        assert!(true);
     }
 }

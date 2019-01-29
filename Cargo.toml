@@ -11,6 +11,7 @@ smallvec = "0.6.7"
 take_mut = "0.2.2"
 
 quickcheck = "0.7.1"
+maplit = "1.0"
 
 [dev-dependencies]
 quickcheck = "0.7.1"
