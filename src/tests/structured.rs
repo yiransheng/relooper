@@ -1,9 +1,5 @@
-use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt::Debug;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
-use std::iter;
-use std::marker::PhantomData;
 
 use petgraph::graphmap::DiGraphMap;
 

@@ -1,62 +1,26 @@
-mod ast;
-mod cfg;
+mod meaningful_neighbors;
+mod structured;
 mod unstructured;
-
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
-
-use petgraph::graphmap::DiGraphMap;
-
-use self::ast::{Edge, GraphMaker, Node};
-use self::cfg::MeaningfulNeighbors;
-use self::unstructured::UnstructuredCfg;
-
-use crate::{CondType, Exit, Flow, ShapeId, StructuredAst};
 
 #[cfg(test)]
 mod quickcheck_graphs {
-    use super::*;
-    use crate::{Flow, Relooper};
-    use std::io;
+    use std::collections::{HashMap, HashSet};
+
+    use crate::*;
+
+    use super::meaningful_neighbors::MeaningfulNeighbors;
+    use super::structured::{Edge, GraphMaker, Node};
+    use super::unstructured::UnstructuredCfg;
 
     use petgraph::dot::{Config, Dot};
+    use petgraph::graphmap::DiGraphMap;
     use petgraph::visit::Dfs;
     use petgraph::{Direction, Graph};
 
     use quickcheck::{quickcheck, Arbitrary, Gen};
 
-    fn check_node(
-        node: i32,
-        unstructured: &DiGraphMap<i32, Option<i32>>,
-        processed: &DiGraphMap<Node<i32>, Edge<i32>>,
-    ) -> bool {
-        let neighbors_0: HashSet<_> = unstructured
-            .neighbors_directed(node, Direction::Outgoing)
-            .map(|nx| {
-                let edge = unstructured.edge_weight(node, nx).cloned().unwrap();
-                (nx, edge)
-            })
-            .collect();
-
-        let mut neighbors_1 = HashSet::new();
-        let mut searcher = MeaningfulNeighbors::new(node, Direction::Outgoing);
-        while let Some(x) = searcher.next(processed) {
-            neighbors_1.insert(x);
-        }
-
-        if neighbors_0 != neighbors_1 {
-            println!("Checking node: {}", node);
-            println!("Original: {:#?}", neighbors_0);
-            println!("Procesed: {:#?}", neighbors_1);
-        }
-
-        neighbors_0 == neighbors_1
-    }
-
     quickcheck! {
         fn reloops_unstructured_cfg(unstructured: UnstructuredCfg) -> bool {
-            // return true;
-
             let unstructured = unstructured.graph;
 
             if unstructured.node_count() == 0 {
@@ -89,21 +53,55 @@ mod quickcheck_graphs {
             while let Some(nx) = dfs.next(&unstructured) {
                 let is_ok = check_node(nx, &unstructured, &processed);
                 if !is_ok {
-                    let stdout = io::stdout();
-                    {
-                        use io::Write;
-                        let mut out = stdout.lock();
-                        writeln!(out, "{:?}", Dot::with_config(&unstructured, &[]),);
-                        writeln!(out);
-                        writeln!(out);
-                        writeln!(out);
-                        writeln!(out, "{:?}", Dot::with_config(&processed, &[]),);
-                    }
+                    print_graphs(&unstructured, &processed);
                     return false;
                 }
             }
 
             true
         }
+    }
+
+    fn print_graphs(
+        unstructured: &DiGraphMap<i32, Option<i32>>,
+        processed: &DiGraphMap<Node<i32>, Edge<i32>>,
+    ) {
+        use std::io::{self, Write};
+        let stdout = io::stdout();
+        let mut out = stdout.lock();
+
+        writeln!(out, "{:?}", Dot::with_config(&unstructured, &[]),);
+        writeln!(out);
+        writeln!(out);
+        writeln!(out);
+        writeln!(out, "{:?}", Dot::with_config(&processed, &[]),);
+    }
+
+    fn check_node(
+        node: i32,
+        unstructured: &DiGraphMap<i32, Option<i32>>,
+        processed: &DiGraphMap<Node<i32>, Edge<i32>>,
+    ) -> bool {
+        let neighbors_0: HashSet<_> = unstructured
+            .neighbors_directed(node, Direction::Outgoing)
+            .map(|nx| {
+                let edge = unstructured.edge_weight(node, nx).cloned().unwrap();
+                (nx, edge)
+            })
+            .collect();
+
+        let mut neighbors_1 = HashSet::new();
+        let mut searcher = MeaningfulNeighbors::new(node, Direction::Outgoing);
+        while let Some(x) = searcher.next(processed) {
+            neighbors_1.insert(x);
+        }
+
+        if neighbors_0 != neighbors_1 {
+            println!("Checking node: {}", node);
+            println!("Original: {:#?}", neighbors_0);
+            println!("Procesed: {:#?}", neighbors_1);
+        }
+
+        neighbors_0 == neighbors_1
     }
 }

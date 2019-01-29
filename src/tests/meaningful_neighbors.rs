@@ -1,10 +1,9 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Debug;
+use std::collections::{HashSet, VecDeque};
 use std::hash::Hash;
 
-use super::ast::{Edge, Node};
+use super::structured::{Edge, Node};
 
-use crate::types::{BlockId, ShapeId};
+use crate::types::BlockId;
 use petgraph::graphmap::DiGraphMap;
 use petgraph::Direction;
 
@@ -103,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_multi_direct_neighbors() {
-        let mut graph: DiGraphMap<Node<i32>, Edge<i32>> =
+        let graph: DiGraphMap<Node<i32>, Edge<i32>> =
             DiGraphMap::from_edges(&[
                 (Node::Meaningful(0), Node::Dummy(0, None), Edge::Forward),
                 (

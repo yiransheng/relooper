@@ -6,17 +6,11 @@ edition = "2018"
 
 [dependencies]
 fixedbitset = "0.1.9"
-# petgraph = "0.4.13"
+petgraph = "0.4.13"
 smallvec = "0.6.7"
 take_mut = "0.2.2"
 
+[dev-dependencies]
 quickcheck = "0.7.1"
 maplit = "1.0"
 
-[dev-dependencies]
-quickcheck = "0.7.1"
-
-[dependencies.petgraph]
-version = "0.4.13"
-default-features = false
-features = ["quickcheck", "graphmap"]
