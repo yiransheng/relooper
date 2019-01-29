@@ -5,6 +5,7 @@ use petgraph::graph::{DiGraph, IndexType, NodeIndex};
 
 pub type DefaultIndex = u32;
 
+/// Id for shapes (loops and switches).
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct ShapeId<Ix = DefaultIndex>(Ix);
 
@@ -21,6 +22,8 @@ impl ShapeIdGen {
 }
 
 impl<Ix: IndexType> ShapeId<Ix> {
+    /// Get a `usize` out of `ShapeId`. Which can be formatted into `loop` labels for example,
+    /// depending on exact use case.
     #[inline]
     pub fn index(&self) -> usize {
         self.0.index()
@@ -34,6 +37,11 @@ impl<Ix: IndexType> ShapeId<Ix> {
 
 pub type CFGraph<L, C> = DiGraph<Block<L>, Branch<C>, DefaultIndex>;
 
+/// Type alias for [`Relooper`](../struct.Relooper.html)'s internal block id. To get a `usize` out
+/// of it for formatting or AST construction, call `.index()` method on it.
+///
+/// This type is based on
+/// [`NodeIndex`](https://docs.rs/petgraph/0.4.13/petgraph/graph/struct.NodeIndex.html) `struct`.
 pub type BlockId = NodeIndex<DefaultIndex>;
 
 #[derive(Debug, Clone)]

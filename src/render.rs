@@ -4,12 +4,30 @@ use std::iter;
 use crate::shapes::*;
 use crate::types::{BlockId, EntryType, FlowType, ProcessedBranch, ShapeId};
 
+/// `enum` models conditional branching in structured CFG/AST produced by
+/// `Relooper`.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum CondType<C> {
+    /// Generic condition from input unstructured CFG
     Case(C),
+    /// Checked label.
+    ///
+    /// `Relooper` sometimes uses a "label" variable to translate irreducible control flows.
+    /// Control flow follows through this variant if an ancestor block sets "label" variable to the
+    /// exact value of its [`BlockId`](../type.BlockId.html).
+    ///
+    /// For example, `CondType::CaseLabel(BlockId(3))` may eventually become (in JavaScript):
+    ///
+    /// ```javascript
+    /// if (__label__ === 3) {
+    ///
+    /// }
+    ///
+    /// ```
     CaseLabel(BlockId),
 }
 impl<C: Clone> CondType<&C> {
+    /// Similar to `Option`'s `cloned` method, clones contained condition
     pub fn cloned(&self) -> CondType<C> {
         match self {
             CondType::Case(c) => CondType::Case((*c).clone()),
@@ -18,9 +36,9 @@ impl<C: Clone> CondType<&C> {
     }
 }
 
-// primarily for Cond<&str> type usage, method named `as_owned`
-// because `to_owned` is already implemented due to derive(Clone)
 impl<C: ToOwned + ?Sized> CondType<&C> {
+    /// Primarily for Cond<&str> type usage (to get a `CondType<String>` out of it), method named `as_owned`
+    /// because `to_owned` is already implemented due to derive(Clone)
     pub fn as_owned(&self) -> CondType<C::Owned> {
         match self {
             CondType::Case(c) => CondType::Case((*c).to_owned()),
